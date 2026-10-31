@@ -15,7 +15,7 @@ from yt2pdf.config import (
     WorkerMessage,
     WorkerMessageType,
 )
-from yt2pdf.downloader import VideoDownloader, DownloadCancelledError, VideoIngestionError
+from yt2pdf.downloader import VideoDownloader, DownloadCancelledError, VideoIngestionError, clean_file_path
 from yt2pdf.detector import SlideDetector
 from yt2pdf.pdf_builder import compile_slides_to_pdf, PDFBuilderError
 from yt2pdf.deduplicator import deduplicate_slides_list
@@ -61,7 +61,7 @@ class ExtractionWorker(threading.Thread):
         try:
             # 1. Ingestion / Video Resolution
             if self.config.source_type == SourceType.YOUTUBE:
-                url = self.config.input_source.strip()
+                url = clean_file_path(self.config.input_source)
                 if not url:
                     raise VideoIngestionError("Please enter a valid YouTube URL.")
 
@@ -78,7 +78,7 @@ class ExtractionWorker(threading.Thread):
                     cancel_event=self.cancel_event
                 )
             else:
-                video_path = self.config.input_source.strip()
+                video_path = clean_file_path(self.config.input_source)
                 if not os.path.exists(video_path):
                     raise VideoIngestionError(f"Local file does not exist: {video_path}")
 
@@ -230,7 +230,7 @@ class ExtractionWorker(threading.Thread):
 
             output_file = compile_slides_to_pdf(
                 slides=slides,
-                output_path=self.config.output_path,
+                output_path=clean_file_path(self.config.output_path),
                 canvas_auto_crop=self.config.canvas_auto_crop,
                 progress_callback=pdf_status
             )

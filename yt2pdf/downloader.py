@@ -29,6 +29,84 @@ def sanitize_filename(name: str) -> str:
     return name if name else "presentation_slides"
 
 
+def clean_file_path(path_str: str) -> str:
+    """Auto-formats and cleans file paths or URLs copied from File Explorer, browsers, or shells.
+
+    Handles:
+    - Surrounding double or single quotes (e.g. '"C:\\Videos\\demo.mp4"')
+    - Leading/trailing whitespace
+    - PowerShell call syntax (e.g. "& 'C:\\...'")
+    - Smart/curly quotes (e.g. “C:\\...”)
+    - file:/// URIs (e.g. file:///C:/path/to/video.mp4)
+    - Git Bash / WSL paths on Windows (e.g. /c/Users/... -> C:\\Users\\...)
+    - Slash normalization on Windows
+    """
+    if not path_str:
+        return ""
+
+    s = str(path_str).strip()
+    if not s:
+        return ""
+
+    # Strip PowerShell execution operator '&'
+    if s.startswith("&"):
+        s = s.lstrip("&").strip()
+
+    # Strip matching quotes in a loop (handles doubly wrapped quotes)
+    quote_chars = ('"', "'", '`', '“', '”', '‘', '’')
+    changed = True
+    while changed and len(s) >= 2:
+        changed = False
+        if s[0] in quote_chars and s[-1] in quote_chars:
+            s = s[1:-1].strip()
+            changed = True
+
+    # Strip any dangling quotes on boundaries
+    s = s.strip('"\'`“”‘’')
+
+    # Handle file:// URIs (e.g. file:///C:/... or file://...)
+    if s.lower().startswith("file:///"):
+        from urllib.parse import unquote
+        s = unquote(s[8:])
+    elif s.lower().startswith("file://"):
+        from urllib.parse import unquote
+        s = unquote(s[7:])
+
+    # Git Bash / MSYS / Cygwin on Windows: /c/Users/... -> C:/Users/...
+    if os.name == "nt":
+        m_git = re.match(r"^/([a-zA-Z])/(.*)$", s)
+        if m_git:
+            s = f"{m_git.group(1).upper()}:/{m_git.group(2)}"
+        else:
+            # WSL: /mnt/c/Users/... -> C:/Users/...
+            m_wsl = re.match(r"^/mnt/([a-zA-Z])/(.*)$", s)
+            if m_wsl:
+                s = f"{m_wsl.group(1).upper()}:/{m_wsl.group(2)}"
+
+    # If it's a Windows drive path (e.g., C:/... or C:\...) or UNC path, normalize slashes
+    if re.match(r"^[a-zA-Z]:[/\\]", s) or s.startswith(r"\\"):
+        s = os.path.normpath(s)
+
+    return s.strip()
+
+
+def is_local_file_path(path_or_url: str) -> bool:
+    """Returns True if the given string represents a local filesystem path rather than a URL."""
+    cleaned = clean_file_path(path_or_url)
+    if not cleaned:
+        return False
+    if cleaned.lower().startswith(("http://", "https://", "www.", "youtube.com", "youtu.be")):
+        return False
+    if os.path.exists(cleaned):
+        return True
+    if re.match(r"^[a-zA-Z]:[/\\]", cleaned) or cleaned.startswith(("\\", "/")):
+        return True
+    video_exts = (".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".wmv", ".m4v", ".pdf")
+    if cleaned.lower().endswith(video_exts):
+        return True
+    return False
+
+
 class VideoDownloader:
     """Manages YouTube stream downloading and local file verification."""
 

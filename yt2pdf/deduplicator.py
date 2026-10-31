@@ -13,6 +13,7 @@ import pypdfium2
 
 from yt2pdf.detector import Slide, compute_opencv_ssim
 from yt2pdf.human_detector import HumanNarratorDetector
+from yt2pdf.downloader import clean_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,10 @@ def deduplicate_pdf(
     Returns:
         DeduplicationResult object with statistics and duplicate details.
     """
+    input_pdf_path = clean_file_path(input_pdf_path)
+    if output_pdf_path:
+        output_pdf_path = clean_file_path(output_pdf_path)
+
     if not os.path.exists(input_pdf_path):
         raise FileNotFoundError(f"Input PDF file not found: {input_pdf_path}")
 

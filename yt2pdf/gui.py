@@ -19,7 +19,7 @@ from yt2pdf.config import (
     WorkerMessage,
     WorkerMessageType,
 )
-from yt2pdf.downloader import VideoDownloader, sanitize_filename
+from yt2pdf.downloader import VideoDownloader, sanitize_filename, clean_file_path, is_local_file_path
 from yt2pdf.worker import ExtractionWorker
 from yt2pdf.deduplicator import deduplicate_pdf, DeduplicationResult
 
@@ -179,14 +179,30 @@ class YT2PDFApp(ctk.CTk):
         )
         self.input_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
+        self.input_browse_btn = ctk.CTkButton(
+            input_entry_row,
+            text="Browse...",
+            width=75,
+            height=36,
+            command=self._on_browse_input_file
+        )
+        # Not packed initially (default mode is YouTube URL)
+
         self.input_action_btn = ctk.CTkButton(
             input_entry_row,
             text="Paste",
             width=75,
             height=36,
-            command=self._on_paste_url
+            command=self._on_paste_input
         )
         self.input_action_btn.pack(side="right")
+
+        # Autoformat bindings for input entry
+        self.input_entry.bind("<Control-v>", self._on_input_entry_paste)
+        self.input_entry.bind("<Control-V>", self._on_input_entry_paste)
+        self.input_entry.bind("<<Paste>>", self._on_input_entry_paste)
+        self.input_entry.bind("<FocusOut>", self._on_input_entry_blur_or_change)
+        self.input_entry.bind("<Return>", self._on_input_entry_blur_or_change)
 
         # Output PDF destination row
         ctk.CTkLabel(card, text="Output PDF File:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=16, pady=(4, 2))
@@ -221,6 +237,13 @@ class YT2PDFApp(ctk.CTk):
             corner_radius=8
         )
         self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        # Autoformat bindings for output entry
+        self.output_entry.bind("<Control-v>", self._on_output_entry_paste)
+        self.output_entry.bind("<Control-V>", self._on_output_entry_paste)
+        self.output_entry.bind("<<Paste>>", self._on_output_entry_paste)
+        self.output_entry.bind("<FocusOut>", self._on_output_entry_blur_or_change)
+        self.output_entry.bind("<Return>", self._on_output_entry_blur_or_change)
 
     def _build_detection_settings_card(self):
         """Panel 2: Sampling and Debounce Sliders."""
@@ -527,26 +550,103 @@ class YT2PDFApp(ctk.CTk):
     # ---------------- UI Event Handlers ----------------
 
     def _on_source_type_changed(self, value):
+        self._update_source_type_ui(value, clear_input=True)
+
+    def _update_source_type_ui(self, value, clear_input=True):
         if value == SourceType.YOUTUBE.value:
             self.input_label.configure(text="YouTube URL:")
-            self.input_entry.delete(0, "end")
+            if clear_input:
+                self.input_entry.delete(0, "end")
             self.input_entry.configure(placeholder_text="https://www.youtube.com/watch?v=...")
-            self.input_action_btn.configure(text="Paste", command=self._on_paste_url)
+            if hasattr(self, "input_browse_btn"):
+                self.input_browse_btn.pack_forget()
         else:
             self.input_label.configure(text="Local Video File:")
-            self.input_entry.delete(0, "end")
+            if clear_input:
+                self.input_entry.delete(0, "end")
             self.input_entry.configure(placeholder_text="Select MP4, MKV, MOV, or AVI file...")
-            self.input_action_btn.configure(text="Browse...", command=self._on_browse_input_file)
+            if hasattr(self, "input_browse_btn"):
+                self.input_browse_btn.pack(side="right", padx=(6, 0))
+
+    def _set_input_value(self, raw_value: str):
+        """Intelligently cleans, auto-formats, and routes input paths and URLs."""
+        if not raw_value:
+            return
+
+        cleaned = clean_file_path(raw_value)
+        if not cleaned:
+            return
+
+        if is_local_file_path(cleaned):
+            # Auto-switch to Local File mode if currently in YouTube mode
+            if self.source_segmented.get() != SourceType.LOCAL_FILE.value:
+                self.source_segmented.set(SourceType.LOCAL_FILE.value)
+                self._update_source_type_ui(SourceType.LOCAL_FILE.value, clear_input=False)
+
+            self.input_entry.delete(0, "end")
+            self.input_entry.insert(0, cleaned)
+
+            # Auto-suggest output PDF path next to video
+            base, _ = os.path.splitext(cleaned)
+            self.output_entry.delete(0, "end")
+            self.output_entry.insert(0, f"{base}_slides.pdf")
+        else:
+            # YouTube URL mode
+            if self.source_segmented.get() != SourceType.YOUTUBE.value:
+                self.source_segmented.set(SourceType.YOUTUBE.value)
+                self._update_source_type_ui(SourceType.YOUTUBE.value, clear_input=False)
+
+            self.input_entry.delete(0, "end")
+            self.input_entry.insert(0, cleaned)
+            self._auto_propose_youtube_title(cleaned)
+
+    def _on_paste_input(self):
+        """Retrieves clipboard content and auto-formats it."""
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                self._set_input_value(clipboard)
+        except Exception as e:
+            logger.debug(f"Clipboard paste error: {e}")
 
     def _on_paste_url(self):
+        """Backward-compatible alias for _on_paste_input."""
+        self._on_paste_input()
+
+    def _on_input_entry_paste(self, event=None):
         try:
-            clipboard = self.clipboard_get().strip()
+            clipboard = self.clipboard_get()
             if clipboard:
-                self.input_entry.delete(0, "end")
-                self.input_entry.insert(0, clipboard)
-                self._auto_propose_youtube_title(clipboard)
+                self._set_input_value(clipboard)
+                return "break"
         except Exception:
             pass
+
+    def _on_input_entry_blur_or_change(self, event=None):
+        curr = self.input_entry.get()
+        if curr:
+            cleaned = clean_file_path(curr)
+            if cleaned != curr:
+                self._set_input_value(cleaned)
+
+    def _on_output_entry_paste(self, event=None):
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                cleaned = clean_file_path(clipboard)
+                self.output_entry.delete(0, "end")
+                self.output_entry.insert(0, cleaned)
+                return "break"
+        except Exception:
+            pass
+
+    def _on_output_entry_blur_or_change(self, event=None):
+        curr = self.output_entry.get()
+        if curr:
+            cleaned = clean_file_path(curr)
+            if cleaned != curr:
+                self.output_entry.delete(0, "end")
+                self.output_entry.insert(0, cleaned)
 
     def _on_browse_input_file(self):
         file_path = filedialog.askopenfilename(
@@ -557,12 +657,7 @@ class YT2PDFApp(ctk.CTk):
             ]
         )
         if file_path:
-            self.input_entry.delete(0, "end")
-            self.input_entry.insert(0, file_path)
-            # Default output path next to video
-            base = os.path.splitext(file_path)[0]
-            self.output_entry.delete(0, "end")
-            self.output_entry.insert(0, f"{base}_slides.pdf")
+            self._set_input_value(file_path)
 
     def _auto_propose_youtube_title(self, url: str):
         """Fetches YouTube title in background to suggest destination PDF filename."""
@@ -619,26 +714,30 @@ class YT2PDFApp(ctk.CTk):
     def _on_view_pdf(self):
         """Action handler to view the currently configured or selected output PDF."""
         # 1. Check current output entry
-        pdf_path = self.output_entry.get().strip()
+        pdf_path = clean_file_path(self.output_entry.get())
         if pdf_path and os.path.isfile(pdf_path):
             self._open_file(pdf_path)
             return
 
         # 2. Check last generated PDF
-        if hasattr(self, "last_generated_pdf") and self.last_generated_pdf and os.path.isfile(self.last_generated_pdf):
-            self._open_file(self.last_generated_pdf)
-            return
+        if hasattr(self, "last_generated_pdf") and self.last_generated_pdf:
+            last_clean = clean_file_path(self.last_generated_pdf)
+            if os.path.isfile(last_clean):
+                self._open_file(last_clean)
+                return
 
         # 3. Prompt user to select an existing PDF
         selected = filedialog.askopenfilename(
             title="Select PDF to View",
             filetypes=[("PDF Documents", "*.pdf"), ("All Files", "*.*")]
         )
-        if selected and os.path.isfile(selected):
-            if not self.output_entry.get().strip():
-                self.output_entry.delete(0, "end")
-                self.output_entry.insert(0, selected)
-            self._open_file(selected)
+        if selected:
+            selected_clean = clean_file_path(selected)
+            if os.path.isfile(selected_clean):
+                if not self.output_entry.get().strip():
+                    self.output_entry.delete(0, "end")
+                    self.output_entry.insert(0, selected_clean)
+                self._open_file(selected_clean)
 
     def _on_toggle_presenter_mask(self):
         enabled = self.mask_presenter_switch.get() == 1
@@ -656,12 +755,17 @@ class YT2PDFApp(ctk.CTk):
     # ---------------- Start & Cancellation ----------------
 
     def _on_start_clicked(self):
-        input_val = self.input_entry.get().strip()
+        input_val = clean_file_path(self.input_entry.get())
         if not input_val:
             messagebox.showwarning("Missing Input", "Please provide a YouTube URL or select a local video file.")
             return
 
-        output_val = self.output_entry.get().strip()
+        # Ensure UI entry reflects clean formatted path
+        if input_val != self.input_entry.get().strip():
+            self.input_entry.delete(0, "end")
+            self.input_entry.insert(0, input_val)
+
+        output_val = clean_file_path(self.output_entry.get())
         if not output_val:
             # Generate default output name
             default_out = os.path.join(os.getcwd(), "presentation_slides.pdf")
@@ -670,6 +774,8 @@ class YT2PDFApp(ctk.CTk):
 
         if not output_val.lower().endswith(".pdf"):
             output_val += ".pdf"
+
+        if output_val != self.output_entry.get().strip():
             self.output_entry.delete(0, "end")
             self.output_entry.insert(0, output_val)
 
@@ -735,6 +841,8 @@ class YT2PDFApp(ctk.CTk):
         self.source_segmented.configure(state=state)
         self.input_entry.configure(state=state)
         self.input_action_btn.configure(state=state)
+        if hasattr(self, "input_browse_btn"):
+            self.input_browse_btn.configure(state=state)
         self.output_entry.configure(state=state)
         self.output_browse_btn.configure(state=state)
         self.output_view_btn.configure(state=state)
@@ -932,7 +1040,7 @@ class YT2PDFApp(ctk.CTk):
     def _open_deduplicate_dialog(self, default_pdf: str = ""):
         """Opens modal to review and deduplicate any existing PDF."""
         if not default_pdf:
-            curr_out = self.output_entry.get().strip()
+            curr_out = clean_file_path(self.output_entry.get())
             if curr_out and os.path.exists(curr_out):
                 default_pdf = curr_out
         DeduplicatePDFDialog(self, default_pdf_path=default_pdf)
@@ -1014,9 +1122,16 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         self.input_entry = ctk.CTkEntry(in_row, placeholder_text="Path to PDF file...", height=34, corner_radius=6)
         self.input_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
         if default_pdf_path:
-            self.input_entry.insert(0, default_pdf_path)
+            self.input_entry.insert(0, clean_file_path(default_pdf_path))
 
-        ctk.CTkButton(in_row, text="Browse...", width=75, height=34, command=self._on_browse_input).pack(side="right")
+        ctk.CTkButton(in_row, text="Browse...", width=75, height=34, command=self._on_browse_input).pack(side="right", padx=(6, 0))
+        ctk.CTkButton(in_row, text="Paste", width=70, height=34, command=self._on_paste_input).pack(side="right")
+
+        self.input_entry.bind("<Control-v>", self._on_input_entry_paste)
+        self.input_entry.bind("<Control-V>", self._on_input_entry_paste)
+        self.input_entry.bind("<<Paste>>", self._on_input_entry_paste)
+        self.input_entry.bind("<FocusOut>", self._on_input_entry_blur_or_change)
+        self.input_entry.bind("<Return>", self._on_input_entry_blur_or_change)
 
         # Output PDF Row
         ctk.CTkLabel(card_files, text="Save Cleaned PDF to:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=16, pady=(2, 2))
@@ -1026,10 +1141,17 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         self.output_entry = ctk.CTkEntry(out_row, placeholder_text="Path to save deduplicated PDF...", height=34, corner_radius=6)
         self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
         if default_pdf_path:
-            base, ext = os.path.splitext(default_pdf_path)
+            base, ext = os.path.splitext(clean_file_path(default_pdf_path))
             self.output_entry.insert(0, f"{base}_dedup{ext}")
 
-        ctk.CTkButton(out_row, text="Browse...", width=75, height=34, command=self._on_browse_output).pack(side="right")
+        ctk.CTkButton(out_row, text="Browse...", width=75, height=34, command=self._on_browse_output).pack(side="right", padx=(6, 0))
+        ctk.CTkButton(out_row, text="Paste", width=70, height=34, command=self._on_paste_output).pack(side="right")
+
+        self.output_entry.bind("<Control-v>", self._on_output_entry_paste)
+        self.output_entry.bind("<Control-V>", self._on_output_entry_paste)
+        self.output_entry.bind("<<Paste>>", self._on_output_entry_paste)
+        self.output_entry.bind("<FocusOut>", self._on_output_entry_blur_or_change)
+        self.output_entry.bind("<Return>", self._on_output_entry_blur_or_change)
 
         # Card 2: Sensitivity & Controls
         card_controls = ctk.CTkFrame(scroll, fg_color=COLOR_CARD_BG, corner_radius=10, border_width=1, border_color=COLOR_BORDER)
@@ -1190,21 +1312,80 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         v_lbl.pack(anchor="w", padx=8, pady=(0, 4))
         return badge, v_lbl
 
+    def _set_input_value(self, raw_path: str):
+        cleaned = clean_file_path(raw_path)
+        if not cleaned:
+            return
+        self.input_entry.delete(0, "end")
+        self.input_entry.insert(0, cleaned)
+        base, ext = os.path.splitext(cleaned)
+        if ext.lower() == ".pdf":
+            self.output_entry.delete(0, "end")
+            self.output_entry.insert(0, f"{base}_dedup{ext}")
+
+    def _on_paste_input(self):
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                self._set_input_value(clipboard)
+        except Exception:
+            pass
+
+    def _on_paste_output(self):
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                cleaned = clean_file_path(clipboard)
+                self.output_entry.delete(0, "end")
+                self.output_entry.insert(0, cleaned)
+        except Exception:
+            pass
+
+    def _on_input_entry_paste(self, event=None):
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                self._set_input_value(clipboard)
+                return "break"
+        except Exception:
+            pass
+
+    def _on_input_entry_blur_or_change(self, event=None):
+        curr = self.input_entry.get()
+        if curr:
+            cleaned = clean_file_path(curr)
+            if cleaned != curr:
+                self._set_input_value(cleaned)
+
+    def _on_output_entry_paste(self, event=None):
+        try:
+            clipboard = self.clipboard_get()
+            if clipboard:
+                cleaned = clean_file_path(clipboard)
+                self.output_entry.delete(0, "end")
+                self.output_entry.insert(0, cleaned)
+                return "break"
+        except Exception:
+            pass
+
+    def _on_output_entry_blur_or_change(self, event=None):
+        curr = self.output_entry.get()
+        if curr:
+            cleaned = clean_file_path(curr)
+            if cleaned != curr:
+                self.output_entry.delete(0, "end")
+                self.output_entry.insert(0, cleaned)
+
     def _on_browse_input(self):
         path = filedialog.askopenfilename(
             title="Select PDF Document to Deduplicate",
             filetypes=[("PDF Document", "*.pdf"), ("All Files", "*.*")]
         )
         if path:
-            self.input_entry.delete(0, "end")
-            self.input_entry.insert(0, path)
-            # Default output path
-            base, ext = os.path.splitext(path)
-            self.output_entry.delete(0, "end")
-            self.output_entry.insert(0, f"{base}_dedup{ext}")
+            self._set_input_value(path)
 
     def _on_browse_output(self):
-        curr = self.output_entry.get().strip()
+        curr = clean_file_path(self.output_entry.get())
         initial_dir = os.path.dirname(curr) if curr else os.getcwd()
         initial_file = os.path.basename(curr) if curr else "presentation_dedup.pdf"
         path = filedialog.asksaveasfilename(
@@ -1215,16 +1396,21 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             filetypes=[("PDF Document", "*.pdf")]
         )
         if path:
+            cleaned = clean_file_path(path)
             self.output_entry.delete(0, "end")
-            self.output_entry.insert(0, path)
+            self.output_entry.insert(0, cleaned)
 
     def _on_start_dedup(self):
-        in_path = self.input_entry.get().strip()
+        in_path = clean_file_path(self.input_entry.get())
         if not in_path or not os.path.exists(in_path):
             messagebox.showwarning("Missing File", "Please select an existing PDF file.")
             return
 
-        out_path = self.output_entry.get().strip()
+        if in_path != self.input_entry.get().strip():
+            self.input_entry.delete(0, "end")
+            self.input_entry.insert(0, in_path)
+
+        out_path = clean_file_path(self.output_entry.get())
         if not out_path:
             base, ext = os.path.splitext(in_path)
             out_path = f"{base}_dedup{ext}"
@@ -1232,6 +1418,10 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         if not out_path.lower().endswith(".pdf"):
             out_path += ".pdf"
+
+        if out_path != self.output_entry.get().strip():
+            self.output_entry.delete(0, "end")
+            self.output_entry.insert(0, out_path)
 
         # UI state
         self.is_processing = True

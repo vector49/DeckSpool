@@ -445,5 +445,86 @@ class TestYT2PDFPipeline(unittest.TestCase):
             pass
 
 
+class TestPathAutoformatting(unittest.TestCase):
+    """Test suite for path cleaning, quote stripping, and Explorer copy autoformatting."""
+
+    def test_file_explorer_copied_path_autoformatting(self):
+        from yt2pdf.downloader import clean_file_path, is_local_file_path
+
+        # 1. Exact case from user prompt: Windows File Explorer "Copy as path"
+        raw_explorer = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        cleaned = clean_file_path(raw_explorer)
+        expected = r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"
+        self.assertEqual(cleaned, expected)
+        self.assertTrue(is_local_file_path(cleaned))
+
+        # 2. Single quotes
+        raw_single = r"'C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4'"
+        self.assertEqual(clean_file_path(raw_single), expected)
+
+        # 3. Surrounding whitespace with quotes
+        raw_padded = r'   "C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"   '
+        self.assertEqual(clean_file_path(raw_padded), expected)
+
+        # 4. Forward slashes with quotes
+        raw_fslash = r'"C:/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"'
+        self.assertEqual(clean_file_path(raw_fslash), expected)
+
+        # 5. file:/// URI (with encoded spaces %20)
+        raw_uri = "file:///C:/Users/Vignesh/Videos/2026-10-30%2010-34-09.mp4"
+        self.assertEqual(clean_file_path(raw_uri), expected)
+
+        # 6. PowerShell '&' call syntax
+        raw_ps = r'& "C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        self.assertEqual(clean_file_path(raw_ps), expected)
+
+        # 7. Git Bash format on Windows
+        raw_git = "/c/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"
+        self.assertEqual(clean_file_path(raw_git), expected)
+
+        # 8. WSL format on Windows
+        raw_wsl = "/mnt/c/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"
+        self.assertEqual(clean_file_path(raw_wsl), expected)
+
+        # 9. Normal YouTube URL - should preserve URL structure
+        yt_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        self.assertEqual(clean_file_path(yt_url), yt_url)
+        self.assertFalse(is_local_file_path(yt_url))
+
+        # 10. Quoted YouTube URL - strips quotes while preserving URL
+        quoted_yt = '"https://youtu.be/dQw4w9WgXcQ"'
+        self.assertEqual(clean_file_path(quoted_yt), "https://youtu.be/dQw4w9WgXcQ")
+        self.assertFalse(is_local_file_path(quoted_yt))
+
+    def test_gui_path_autoformatting(self):
+        from yt2pdf.gui import YT2PDFApp, DeduplicatePDFDialog
+        from yt2pdf.config import SourceType
+
+        app = YT2PDFApp()
+        app.update_idletasks()
+
+        # Simulate user copying from File Explorer with double quotes
+        raw_explorer = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        app._set_input_value(raw_explorer)
+
+        # 1. Strips quotes
+        self.assertEqual(app.input_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4")
+        # 2. Auto-switches mode to Local File
+        self.assertEqual(app.source_segmented.get(), SourceType.LOCAL_FILE.value)
+        # 3. Auto-suggests destination PDF filename next to the video
+        self.assertEqual(app.output_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf")
+
+        # Test deduplicate dialog with quoted path
+        raw_pdf = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf"'
+        dialog = DeduplicatePDFDialog(app, default_pdf_path=raw_pdf)
+        dialog.update_idletasks()
+
+        self.assertEqual(dialog.input_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf")
+        self.assertEqual(dialog.output_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides_dedup.pdf")
+
+        dialog.destroy()
+        app.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()
