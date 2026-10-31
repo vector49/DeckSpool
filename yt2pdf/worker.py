@@ -188,7 +188,7 @@ class ExtractionWorker(threading.Thread):
                     self._send(WorkerMessageType.METRICS, metrics_data)
                     self._send(
                         WorkerMessageType.STATUS,
-                        f"Analyzing frame {curr_time_str} / {total_time_str} • ETA {eta_mins_str} (Finishes at {finish_time_str})..."
+                        f"Analyzing frame {curr_time_str} / {total_time_str}..."
                     )
 
                 current_frame_idx += frame_step

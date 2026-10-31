@@ -210,16 +210,13 @@ class YT2PDFApp(ctk.CTk):
         output_entry_row = ctk.CTkFrame(card, fg_color="transparent")
         output_entry_row.pack(fill="x", padx=16, pady=(0, 16))
 
-        self.output_view_btn = ctk.CTkButton(
+        self.output_entry = ctk.CTkEntry(
             output_entry_row,
-            text="View PDF",
-            width=80,
+            placeholder_text="Path to save output .pdf (auto-suggested)",
             height=36,
-            fg_color="#1f6feb",
-            hover_color="#388bfd",
-            command=self._on_view_pdf
+            corner_radius=8
         )
-        self.output_view_btn.pack(side="right")
+        self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
         self.output_browse_btn = ctk.CTkButton(
             output_entry_row,
@@ -228,15 +225,7 @@ class YT2PDFApp(ctk.CTk):
             height=36,
             command=self._on_browse_output
         )
-        self.output_browse_btn.pack(side="right", padx=(0, 6))
-
-        self.output_entry = ctk.CTkEntry(
-            output_entry_row,
-            placeholder_text="Path to save output .pdf (auto-suggested)",
-            height=36,
-            corner_radius=8
-        )
-        self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.output_browse_btn.pack(side="right")
 
         # Autoformat bindings for output entry
         self.output_entry.bind("<Control-v>", self._on_output_entry_paste)
@@ -845,7 +834,6 @@ class YT2PDFApp(ctk.CTk):
             self.input_browse_btn.configure(state=state)
         self.output_entry.configure(state=state)
         self.output_browse_btn.configure(state=state)
-        self.output_view_btn.configure(state=state)
         self.header_view_pdf_btn.configure(state=state)
         self.header_dedup_btn.configure(state=state)
         self.cancel_btn.configure(state="normal" if processing else "disabled")
