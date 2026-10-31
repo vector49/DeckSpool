@@ -555,7 +555,7 @@ class YT2PDFApp(ctk.CTk):
                 self.input_entry.delete(0, "end")
             self.input_entry.configure(placeholder_text="Select MP4, MKV, MOV, or AVI file...")
             if hasattr(self, "input_browse_btn"):
-                self.input_browse_btn.pack(side="right", padx=(6, 0))
+                self.input_browse_btn.pack(side="right", padx=(0, 8))
 
     def _set_input_value(self, raw_value: str):
         """Intelligently cleans, auto-formats, and routes input paths and URLs."""
@@ -1112,8 +1112,8 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         if default_pdf_path:
             self.input_entry.insert(0, clean_file_path(default_pdf_path))
 
-        ctk.CTkButton(in_row, text="Browse...", width=75, height=34, command=self._on_browse_input).pack(side="right", padx=(6, 0))
         ctk.CTkButton(in_row, text="Paste", width=70, height=34, command=self._on_paste_input).pack(side="right")
+        ctk.CTkButton(in_row, text="Browse...", width=75, height=34, command=self._on_browse_input).pack(side="right", padx=(0, 8))
 
         self.input_entry.bind("<Control-v>", self._on_input_entry_paste)
         self.input_entry.bind("<Control-V>", self._on_input_entry_paste)
@@ -1132,8 +1132,8 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             base, ext = os.path.splitext(clean_file_path(default_pdf_path))
             self.output_entry.insert(0, f"{base}_dedup{ext}")
 
-        ctk.CTkButton(out_row, text="Browse...", width=75, height=34, command=self._on_browse_output).pack(side="right", padx=(6, 0))
         ctk.CTkButton(out_row, text="Paste", width=70, height=34, command=self._on_paste_output).pack(side="right")
+        ctk.CTkButton(out_row, text="Browse...", width=75, height=34, command=self._on_browse_output).pack(side="right", padx=(0, 8))
 
         self.output_entry.bind("<Control-v>", self._on_output_entry_paste)
         self.output_entry.bind("<Control-V>", self._on_output_entry_paste)
