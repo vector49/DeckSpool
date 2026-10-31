@@ -1,3 +1,5 @@
+# This repo is now saved in GITHUB
+
 # YT2PDF — Presentation Slide Extractor & Lossless PDF Builder
 
 A high-performance desktop application built with Python and CustomTkinter that automatically detects and extracts unique presentation slides from YouTube videos or local video files and compiles them into a clean, lossless PDF.
@@ -84,3 +86,5 @@ Run the test suite:
 ```bash
 python -m unittest tests/test_pipeline.py
 ```
+
+# End of File 
