@@ -114,7 +114,7 @@ class YT2PDFApp(ctk.CTk):
 
         self.title("YT2PDF — Smart Presentation Slide Extractor & Lossless PDF Builder")
         self.geometry("1080x640")
-        self.minsize(940, 560)
+        self.minsize(940, 520)
         self.configure(fg_color=COLOR_CANVAS_BG)
 
         # Worker state
@@ -126,8 +126,8 @@ class YT2PDFApp(ctk.CTk):
 
         # Build UI Layout
         self._create_header()
-        self._create_main_content()
         self._create_footer()
+        self._create_main_content()
 
         # Start background event loop for thread safety
         self._queue_job = None
@@ -145,7 +145,7 @@ class YT2PDFApp(ctk.CTk):
     def _create_header(self):
         """Top banner with application title and subtitle."""
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", padx=24, pady=(16, 8))
+        header_frame.pack(fill="x", padx=24, pady=(10, 4))
 
         title_label = ctk.CTkLabel(
             header_frame,
@@ -209,7 +209,7 @@ class YT2PDFApp(ctk.CTk):
         """Scrollable or dual-column content layout."""
         # Use two columns: Left for configuration, Right for live progress and preview
         self.container = ctk.CTkFrame(self, fg_color="transparent")
-        self.container.pack(fill="both", expand=True, padx=20, pady=8)
+        self.container.pack(fill="both", expand=True, padx=20, pady=(2, 4))
 
         # Left Column (Config panels)
         self.left_col = ctk.CTkScrollableFrame(
@@ -277,6 +277,7 @@ class YT2PDFApp(ctk.CTk):
             unselected_color="#ffffff",
             unselected_hover_color="#f3f4f6",
             text_color="#000000",
+            text_color_disabled="#000000",
             border_width=2,
             corner_radius=8,
             font=ctk.CTkFont(size=12, weight="bold")
@@ -319,6 +320,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_YELLOW,
             hover_color=COLOR_NEO_YELLOW_HOVER,
             text_color="#000000",
+            text_color_disabled="#000000",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -335,6 +337,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_BLUE,
             hover_color=COLOR_NEO_BLUE_HOVER,
             text_color="#000000",
+            text_color_disabled="#000000",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -383,6 +386,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_YELLOW,
             hover_color=COLOR_NEO_YELLOW_HOVER,
             text_color="#000000",
+            text_color_disabled="#000000",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -686,7 +690,7 @@ class YT2PDFApp(ctk.CTk):
     def _build_right_preview_panel(self):
         """Right column: Run Controls, Live Metrics, Progress, and Thumbnail Preview."""
         right_container = ctk.CTkFrame(self.right_col, fg_color="transparent")
-        right_container.pack(fill="both", expand=True, padx=16, pady=16)
+        right_container.pack(fill="both", expand=True, padx=14, pady=12)
 
         create_neo_card_header(right_container, "[ 04 ] LIVE DASHBOARD & PREVIEW", COLOR_NEO_GREEN)
 
@@ -698,7 +702,7 @@ class YT2PDFApp(ctk.CTk):
             border_color="#000000",
             corner_radius=8
         )
-        self.status_box.pack(fill="x", pady=(0, 10))
+        self.status_box.pack(fill="x", pady=(0, 6))
 
         self.status_label = ctk.CTkLabel(
             self.status_box,
@@ -707,27 +711,27 @@ class YT2PDFApp(ctk.CTk):
             text_color="#000000",
             anchor="w"
         )
-        self.status_label.pack(fill="x", padx=12, pady=8)
+        self.status_label.pack(fill="x", padx=12, pady=6)
 
         # Progress Bar
         self.progress_bar = ctk.CTkProgressBar(
             right_container,
-            height=14,
-            corner_radius=7,
+            height=12,
+            corner_radius=6,
             fg_color="#ffffff",
             progress_color="#ffffff",   # Starts transparent/clear (no fill until extraction begins)
             border_width=2,
             border_color="#000000"
         )
         self.progress_bar.set(0.0)
-        self.progress_bar.pack(fill="x", pady=(0, 14))
+        self.progress_bar.pack(fill="x", pady=(0, 8))
 
         # KPI Metrics Cards (4 Signature Neo-Pastel Blocks)
         metrics_frame = ctk.CTkFrame(right_container, fg_color="transparent")
-        metrics_frame.pack(fill="x", pady=(0, 14))
+        metrics_frame.pack(fill="x", pady=(0, 8))
 
         m_row1 = ctk.CTkFrame(metrics_frame, fg_color="transparent")
-        m_row1.pack(fill="x", pady=(0, 8))
+        m_row1.pack(fill="x", pady=(0, 6))
         m_row1.grid_columnconfigure(0, weight=1, uniform="kpi")
         m_row1.grid_columnconfigure(1, weight=1, uniform="kpi")
 
@@ -746,34 +750,9 @@ class YT2PDFApp(ctk.CTk):
         self.card_slides.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         self.card_eta.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
-        # Live Slide Thumbnail Card
-        ctk.CTkLabel(
-            right_container,
-            text="LATEST CAPTURED SLIDE:",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color=COLOR_TEXT
-        ).pack(anchor="w", pady=(8, 4))
-        
-        self.preview_frame = ctk.CTkFrame(
-            right_container,
-            fg_color="#ffffff",
-            corner_radius=10,
-            border_width=2,
-            border_color="#000000"
-        )
-        self.preview_frame.pack(fill="both", expand=True, pady=(0, 14))
-
-        self.preview_label = ctk.CTkLabel(
-            self.preview_frame,
-            text="No slides captured yet\nPreview will appear here in real time",
-            text_color="#6b7280",
-            font=ctk.CTkFont(size=12, weight="bold")
-        )
-        self.preview_label.pack(fill="both", expand=True, padx=8, pady=8)
-
-        # Run Controls (Prominent Start & Cancel Buttons)
+        # Run Controls (Prominent Start & Cancel Buttons) - ANCHORED AT BOTTOM FIRST!
         btn_frame = ctk.CTkFrame(right_container, fg_color="transparent")
-        btn_frame.pack(fill="x")
+        btn_frame.pack(side="bottom", fill="x", pady=(6, 0))
 
         self.start_btn = ctk.CTkButton(
             btn_frame,
@@ -782,10 +761,10 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_GREEN,
             hover_color=COLOR_NEO_GREEN_HOVER,
             text_color="#000000",
-            text_color_disabled="#4b5563",
+            text_color_disabled="#000000",
             border_width=2.5,
             border_color="#000000",
-            height=46,
+            height=42,
             corner_radius=10,
             command=self._on_start_clicked
         )
@@ -802,12 +781,40 @@ class YT2PDFApp(ctk.CTk):
             border_width=2.5,
             border_color="#000000",
             width=120,
-            height=46,
+            height=42,
             corner_radius=10,
             state="disabled",
             command=self._on_cancel_clicked
         )
         self.cancel_btn.pack(side="right")
+
+        # Live Slide Thumbnail Card Label (top)
+        self.preview_title_lbl = ctk.CTkLabel(
+            right_container,
+            text="LATEST CAPTURED SLIDE:",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=COLOR_TEXT
+        )
+        self.preview_title_lbl.pack(anchor="w", pady=(4, 2))
+
+        # Live Slide Thumbnail Card (fills the remaining space between label and buttons!)
+        self.preview_frame = ctk.CTkFrame(
+            right_container,
+            fg_color="#ffffff",
+            corner_radius=10,
+            border_width=2,
+            border_color="#000000"
+        )
+        self.preview_frame.pack(fill="both", expand=True, pady=(0, 4))
+
+        self.preview_label = ctk.CTkLabel(
+            self.preview_frame,
+            text="No slides captured yet\nPreview will appear here in real time",
+            text_color="#6b7280",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.preview_label.pack(fill="both", expand=True, padx=6, pady=6)
+        self.preview_frame.bind("<Configure>", self._on_preview_frame_resize)
 
     def _create_kpi_badge(self, parent, title, initial_val, bg_color=COLOR_NEO_YELLOW):
         """Creates a stylized Neo-Brutalist KPI badge card."""
@@ -838,7 +845,7 @@ class YT2PDFApp(ctk.CTk):
     def _create_footer(self):
         """Bottom bar."""
         footer = ctk.CTkFrame(self, fg_color="transparent", height=24)
-        footer.pack(fill="x", padx=24, pady=(0, 10))
+        footer.pack(side="bottom", fill="x", padx=24, pady=(0, 6))
         ctk.CTkLabel(
             footer,
             text="YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced",
@@ -1228,22 +1235,36 @@ class YT2PDFApp(ctk.CTk):
         elif msg.msg_type == WorkerMessageType.CANCELLED:
             self._handle_cancellation()
 
+    def _on_preview_frame_resize(self, event=None):
+        """Re-render thumbnail when window or preview frame is resized to preserve fit."""
+        if hasattr(self, "_last_thumbnail_rgb") and self._last_thumbnail_rgb is not None:
+            self._render_thumbnail()
+
     def _update_thumbnail_preview(self, data: dict):
         """Displays the latest accepted slide in the preview card with aspect ratio preservation."""
         try:
             rgb_arr = data["image_rgb"]
-            pil_img = Image.fromarray(rgb_arr)
+            self._last_thumbnail_rgb = rgb_arr
+            self._render_thumbnail()
+        except Exception as e:
+            logger.debug(f"Preview update failed: {e}")
+
+    def _render_thumbnail(self):
+        if not hasattr(self, "_last_thumbnail_rgb") or self._last_thumbnail_rgb is None:
+            return
+        try:
+            pil_img = Image.fromarray(self._last_thumbnail_rgb)
             
-            # Target size: fits neatly inside the card
-            card_w = max(260, self.preview_frame.winfo_width() - 20)
-            card_h = max(180, self.preview_frame.winfo_height() - 20)
+            # Target size: fits neatly inside whatever space the preview frame currently has
+            card_w = max(100, self.preview_frame.winfo_width() - 16)
+            card_h = max(60, self.preview_frame.winfo_height() - 16)
             pil_img.thumbnail((card_w, card_h), Image.Resampling.LANCZOS)
 
             ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=pil_img.size)
             self.preview_label.configure(image=ctk_img, text="")
             self.preview_label.image = ctk_img
         except Exception as e:
-            logger.debug(f"Preview update failed: {e}")
+            logger.debug(f"Thumbnail render failed: {e}")
 
     def _handle_completion(self, payload: dict):
         self._set_processing_ui_state(False)
