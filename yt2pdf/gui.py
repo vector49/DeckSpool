@@ -113,8 +113,8 @@ class YT2PDFApp(ctk.CTk):
         super().__init__()
 
         self.title("YT2PDF — Smart Presentation Slide Extractor & Lossless PDF Builder")
-        self.geometry("1120x860")
-        self.minsize(980, 750)
+        self.geometry("1080x640")
+        self.minsize(940, 560)
         self.configure(fg_color=COLOR_CANVAS_BG)
 
         # Worker state
@@ -130,7 +130,17 @@ class YT2PDFApp(ctk.CTk):
         self._create_footer()
 
         # Start background event loop for thread safety
-        self.after(50, self._process_queue)
+        self._queue_job = None
+        self._queue_job = self.after(50, self._process_queue)
+
+    def destroy(self):
+        if hasattr(self, "_queue_job") and self._queue_job:
+            try:
+                self.after_cancel(self._queue_job)
+                self._queue_job = None
+            except Exception:
+                pass
+        super().destroy()
 
     def _create_header(self):
         """Top banner with application title and subtitle."""
@@ -169,6 +179,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_BLUE,
             hover_color=COLOR_NEO_BLUE_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -185,6 +196,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_LILAC,
             hover_color=COLOR_NEO_LILAC_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -301,7 +313,7 @@ class YT2PDFApp(ctk.CTk):
         self.input_browse_btn = ctk.CTkButton(
             input_entry_row,
             text="Browse...",
-            width=75,
+            width=78,
             height=38,
             command=self._on_browse_input_file,
             fg_color=COLOR_NEO_YELLOW,
@@ -317,7 +329,7 @@ class YT2PDFApp(ctk.CTk):
         self.input_action_btn = ctk.CTkButton(
             input_entry_row,
             text="Paste",
-            width=75,
+            width=78,
             height=38,
             command=self._on_paste_input,
             fg_color=COLOR_NEO_BLUE,
@@ -365,7 +377,7 @@ class YT2PDFApp(ctk.CTk):
         self.output_browse_btn = ctk.CTkButton(
             output_entry_row,
             text="Browse...",
-            width=80,
+            width=78,
             height=38,
             command=self._on_browse_output,
             fg_color=COLOR_NEO_YELLOW,
@@ -457,25 +469,20 @@ class YT2PDFApp(ctk.CTk):
             text_color=COLOR_TEXT
         ).pack(side="left")
 
-        # Pill badge for current value
-        badge = ctk.CTkFrame(
-            top_line,
-            fg_color=COLOR_NEO_YELLOW,
-            corner_radius=6,
-            border_width=2,
-            border_color="#000000"
-        )
-        badge.pack(side="right", pady=(1, 1))  # Symmetric vertical padding ensures all 4 border sides render
-
+        # Pill badge for current value with complete solid 4-sided black outline
         val_label = ctk.CTkLabel(
-            badge,
+            top_line,
             text=initial_val_str,
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#000000",
-            width=54,
-            height=24
+            fg_color=COLOR_NEO_YELLOW,
+            corner_radius=6,
+            border_width=2,
+            border_color="#000000",
+            width=62,
+            height=26
         )
-        val_label.pack(padx=6, pady=2)
+        val_label.pack(side="right")
 
         ctk.CTkLabel(
             row,
@@ -673,6 +680,9 @@ class YT2PDFApp(ctk.CTk):
         self.filter_narrator_switch.select()  # Default: On
         self.filter_narrator_switch.pack(side="left")
 
+        # Bottom spacer for comfortable scroll padding
+        ctk.CTkFrame(self.left_col, fg_color="transparent", height=14).pack(fill="x")
+
     def _build_right_preview_panel(self):
         """Right column: Run Controls, Live Metrics, Progress, and Thumbnail Preview."""
         right_container = ctk.CTkFrame(self.right_col, fg_color="transparent")
@@ -768,6 +778,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_GREEN,
             hover_color=COLOR_NEO_GREEN_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2.5,
             border_color="#000000",
             height=46,
@@ -783,6 +794,7 @@ class YT2PDFApp(ctk.CTk):
             fg_color=COLOR_NEO_RED,
             hover_color=COLOR_NEO_RED_HOVER,
             text_color="#000000",
+            text_color_disabled="#6b7280",
             border_width=2.5,
             border_color="#000000",
             width=120,
@@ -1182,7 +1194,8 @@ class YT2PDFApp(ctk.CTk):
         except Exception as e:
             logger.error(f"Error handling worker queue message: {e}")
         finally:
-            self.after(50, self._process_queue)
+            self._queue_job = None
+        self._queue_job = self.after(50, self._process_queue)
 
     def _handle_worker_message(self, msg: WorkerMessage):
         if msg.msg_type == WorkerMessageType.STATUS:
@@ -1250,7 +1263,7 @@ class YT2PDFApp(ctk.CTk):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Extraction Complete")
         dialog_w = 540
-        dialog_h = 320
+        dialog_h = 295
         dialog.geometry(f"{dialog_w}x{dialog_h}")
         dialog.resizable(False, False)
         dialog.configure(fg_color=COLOR_CANVAS_BG)
@@ -1286,7 +1299,7 @@ class YT2PDFApp(ctk.CTk):
             border_width=2,
             border_color="#000000"
         )
-        info_card.pack(fill="x", padx=16, pady=(0, 14))
+        info_card.pack(fill="x", padx=16, pady=(0, 12))
 
         summary_title = f"Compiled {slides_count} unique presentation slides in {time_text}."
         ctk.CTkLabel(
@@ -1306,7 +1319,7 @@ class YT2PDFApp(ctk.CTk):
         ).pack(anchor="w", padx=12, pady=(0, 10))
 
         matrix_frame = ctk.CTkFrame(card, fg_color="transparent")
-        matrix_frame.pack(fill="x", padx=16, pady=(0, 10))
+        matrix_frame.pack(fill="x", padx=16, pady=(0, 14))
 
         def open_pdf():
             self._open_file(pdf_path)
@@ -1429,8 +1442,8 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.title("Review & Deduplicate PDF")
-        self.geometry("700x700")
-        self.minsize(600, 560)
+        self.geometry("740x590")
+        self.minsize(600, 480)
         self.configure(fg_color=COLOR_CANVAS_BG)
         self.transient(parent)
         self.grab_set()
@@ -1443,23 +1456,27 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         # Center on parent window
         try:
-            x = parent.winfo_x() + (parent.winfo_width() // 2) - 350
-            y = parent.winfo_y() + (parent.winfo_height() // 2) - 350
+            x = parent.winfo_x() + (parent.winfo_width() // 2) - 370
+            y = parent.winfo_y() + (parent.winfo_height() // 2) - 295
             self.geometry(f"+{max(0, x)}+{max(0, y)}")
         except Exception:
             pass
 
     def _build_ui(self, default_pdf_path: str):
-        scroll = ctk.CTkScrollableFrame(
+        self.scroll = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
             scrollbar_button_color="#000000",
             scrollbar_button_hover_color="#374151"
         )
-        scroll.pack(fill="both", expand=True, padx=20, pady=16)
+        self.scroll.pack(fill="both", expand=True, padx=20, pady=16)
+
+        # Mousewheel scroll support
+        self.scroll.bind("<Enter>", self._on_scroll_enter)
+        self.scroll.bind("<Leave>", self._on_scroll_leave)
 
         # Header Banner
-        header_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        header_frame = ctk.CTkFrame(self.scroll, fg_color="transparent")
         header_frame.pack(fill="x", pady=(0, 6))
 
         title_label = ctk.CTkLabel(
@@ -1487,7 +1504,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         ).pack(padx=8, pady=3)
 
         desc_lbl = ctk.CTkLabel(
-            scroll,
+            self.scroll,
             text="Scans all pages, detects repetitive slides, and keeps only the first appearance alone.",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=COLOR_TEXT
@@ -1496,7 +1513,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         # Card 1: File Selection
         card_files = ctk.CTkFrame(
-            scroll,
+            self.scroll,
             fg_color=COLOR_CARD_BG,
             corner_radius=14,
             border_width=COLOR_BORDER_WIDTH,
@@ -1533,14 +1550,15 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         if default_pdf_path:
             self.input_entry.insert(0, clean_file_path(default_pdf_path))
 
+        # Pack Paste on far right, Browse... to its left for uniform alignment
         ctk.CTkButton(
             in_row,
-            text="Browse...",
-            width=75,
+            text="Paste",
+            width=78,
             height=36,
-            command=self._on_browse_input,
-            fg_color=COLOR_NEO_YELLOW,
-            hover_color=COLOR_NEO_YELLOW_HOVER,
+            command=self._on_paste_input,
+            fg_color=COLOR_NEO_BLUE,
+            hover_color=COLOR_NEO_BLUE_HOVER,
             text_color="#000000",
             border_width=2,
             border_color="#000000",
@@ -1550,12 +1568,12 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             in_row,
-            text="Paste",
-            width=70,
+            text="Browse...",
+            width=78,
             height=36,
-            command=self._on_paste_input,
-            fg_color=COLOR_NEO_BLUE,
-            hover_color=COLOR_NEO_BLUE_HOVER,
+            command=self._on_browse_input,
+            fg_color=COLOR_NEO_YELLOW,
+            hover_color=COLOR_NEO_YELLOW_HOVER,
             text_color="#000000",
             border_width=2,
             border_color="#000000",
@@ -1597,14 +1615,15 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             base, ext = os.path.splitext(clean_file_path(default_pdf_path))
             self.output_entry.insert(0, f"{base}_dedup{ext}")
 
+        # Pack Paste on far right, Browse... to its left for uniform alignment
         ctk.CTkButton(
             out_row,
-            text="Browse...",
-            width=75,
+            text="Paste",
+            width=78,
             height=36,
-            command=self._on_browse_output,
-            fg_color=COLOR_NEO_YELLOW,
-            hover_color=COLOR_NEO_YELLOW_HOVER,
+            command=self._on_paste_output,
+            fg_color=COLOR_NEO_BLUE,
+            hover_color=COLOR_NEO_BLUE_HOVER,
             text_color="#000000",
             border_width=2,
             border_color="#000000",
@@ -1614,12 +1633,12 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             out_row,
-            text="Paste",
-            width=70,
+            text="Browse...",
+            width=78,
             height=36,
-            command=self._on_paste_output,
-            fg_color=COLOR_NEO_BLUE,
-            hover_color=COLOR_NEO_BLUE_HOVER,
+            command=self._on_browse_output,
+            fg_color=COLOR_NEO_YELLOW,
+            hover_color=COLOR_NEO_YELLOW_HOVER,
             text_color="#000000",
             border_width=2,
             border_color="#000000",
@@ -1635,7 +1654,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         # Card 2: Sensitivity & Controls
         card_controls = ctk.CTkFrame(
-            scroll,
+            self.scroll,
             fg_color=COLOR_CARD_BG,
             corner_radius=14,
             border_width=COLOR_BORDER_WIDTH,
@@ -1656,24 +1675,20 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             text_color=COLOR_TEXT
         ).pack(side="left")
 
-        badge = ctk.CTkFrame(
-            thresh_top,
-            fg_color=COLOR_NEO_YELLOW,
-            corner_radius=6,
-            border_width=2,
-            border_color="#000000"
-        )
-        badge.pack(side="right")
-
+        # Pill badge with complete solid 4-sided black outline
         self.threshold_label = ctk.CTkLabel(
-            badge,
+            thresh_top,
             text="94%",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#000000",
-            width=54,
-            height=24
+            fg_color=COLOR_NEO_YELLOW,
+            corner_radius=6,
+            border_width=2,
+            border_color="#000000",
+            width=62,
+            height=26
         )
-        self.threshold_label.pack(padx=6, pady=2)
+        self.threshold_label.pack(side="right")
 
         ctk.CTkLabel(
             card_controls,
@@ -1728,6 +1743,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             fg_color=COLOR_NEO_GREEN,
             hover_color=COLOR_NEO_GREEN_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2,
             border_color="#000000",
             height=40,
@@ -1743,6 +1759,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             fg_color=COLOR_NEO_RED,
             hover_color=COLOR_NEO_RED_HOVER,
             text_color="#000000",
+            text_color_disabled="#6b7280",
             border_width=2,
             border_color="#000000",
             width=90,
@@ -1755,13 +1772,13 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
         # Card 3: Live Progress & Results
         self.card_results = ctk.CTkFrame(
-            scroll,
+            self.scroll,
             fg_color=COLOR_CARD_BG,
             corner_radius=14,
             border_width=COLOR_BORDER_WIDTH,
             border_color=COLOR_BORDER
         )
-        self.card_results.pack(fill="x", pady=(0, 8))
+        self.card_results.pack(fill="x", pady=(0, 14))
 
         create_neo_card_header(self.card_results, "[ 03 ] ANALYSIS PROGRESS & RESULTS", COLOR_NEO_LILAC)
 
@@ -1789,7 +1806,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             height=12,
             corner_radius=6,
             fg_color="#ffffff",
-            progress_color=COLOR_NEO_GREEN,
+            progress_color="#ffffff",   # Starts clear until deduplication begins
             border_width=2,
             border_color="#000000"
         )
@@ -1843,6 +1860,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             fg_color=COLOR_NEO_GREEN,
             hover_color=COLOR_NEO_GREEN_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -1859,6 +1877,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             fg_color=COLOR_NEO_BLUE,
             hover_color=COLOR_NEO_BLUE_HOVER,
             text_color="#000000",
+            text_color_disabled="#4b5563",
             border_width=2,
             border_color="#000000",
             corner_radius=8,
@@ -1882,6 +1901,44 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             width=90,
             command=self.destroy
         ).pack(side="right", padx=(6, 0))
+
+        # Bottom spacer for comfortable scroll padding
+        ctk.CTkFrame(self.scroll, fg_color="transparent", height=16).pack(fill="x")
+
+    def _bind_mousewheel(self, widget):
+        """Recursively bind mousewheel events so scroll works anywhere in the dialog."""
+        try:
+            widget.bind("<MouseWheel>", self._on_scroll_event, add="+")
+        except (NotImplementedError, Exception):
+            pass
+        try:
+            for child in widget.winfo_children():
+                self._bind_mousewheel(child)
+        except Exception:
+            pass
+
+    def _unbind_mousewheel(self, widget):
+        try:
+            widget.unbind("<MouseWheel>")
+        except Exception:
+            pass
+        try:
+            for child in widget.winfo_children():
+                self._unbind_mousewheel(child)
+        except Exception:
+            pass
+
+    def _on_scroll_event(self, event):
+        try:
+            self.scroll._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except Exception:
+            pass
+
+    def _on_scroll_enter(self, event=None):
+        self._bind_mousewheel(self.scroll)
+
+    def _on_scroll_leave(self, event=None):
+        self._unbind_mousewheel(self.scroll)
 
     def _create_mini_badge(self, parent, title, val, bg_color=COLOR_NEO_YELLOW):
         badge = ctk.CTkFrame(
@@ -2027,6 +2084,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         self.open_folder_btn.configure(state="disabled")
 
         self.status_label.configure(text="Reading document pages...", text_color="#000000")
+        self.progress_bar.configure(progress_color=COLOR_NEO_GREEN)
         self.progress_bar.set(0.0)
         self.lbl_total.configure(text="0")
         self.lbl_kept.configure(text="0")
@@ -2069,6 +2127,8 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
 
     def _on_cancel_dedup(self):
         self.cancel_event.set()
+        self.progress_bar.configure(progress_color="#ffffff")
+        self.progress_bar.set(0.0)
         self.status_label.configure(text="Cancelling duplicate review...", text_color="#000000")
         self.cancel_btn.configure(state="disabled")
 
@@ -2134,6 +2194,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         self.is_processing = False
         self.run_btn.configure(state="normal")
         self.cancel_btn.configure(state="disabled")
+        self.progress_bar.configure(progress_color="#ffffff")
         self.progress_bar.set(0.0)
         self.status_label.configure(text="Error occurred during review.", text_color=COLOR_NEO_RED)
         messagebox.showerror("Deduplication Error", f"An error occurred while reviewing the PDF:\n\n{err_msg}")
