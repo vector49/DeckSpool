@@ -106,6 +106,58 @@ def create_neo_card_header(parent, title: str, badge_color: str = COLOR_NEO_YELL
     return head
 
 
+def apply_neo_slider_thumb_outline(slider: ctk.CTkSlider, outline_width: float = 1.0):
+    """Draws a crisp thin black outline around the circular thumb marker of a CTkSlider."""
+    orig_draw = slider._draw
+
+    def patched_draw(no_color_updates=False):
+        orig_draw(no_color_updates)
+        coords = slider._canvas.coords("slider_oval_1_a")
+        if coords and len(coords) >= 2:
+            cx, cy = coords[0], coords[1]
+            r = (slider._apply_widget_scaling(slider._current_height) / 2) - 0.5
+            if not slider._canvas.find_withtag("thumb_outline"):
+                slider._canvas.create_oval(
+                    cx - r, cy - r, cx + r, cy + r,
+                    outline="#000000",
+                    width=outline_width,
+                    tags=("thumb_outline",)
+                )
+            else:
+                slider._canvas.coords("thumb_outline", cx - r, cy - r, cx + r, cy + r)
+            slider._canvas.tag_raise("thumb_outline")
+
+    slider._draw = patched_draw
+
+
+def clean_segmented_button_outer_edges(segmented_btn: ctk.CTkSegmentedButton, card_bg: str = "#ffffff"):
+    """
+    Eliminates the canvas corner artifact line next to the outer buttons
+    in a CTkSegmentedButton by routing the outermost background corners to the card background.
+    """
+    for val, btn in segmented_btn._buttons_dict.items():
+        is_first = (val == segmented_btn._value_list[0])
+        is_last = (val == segmented_btn._value_list[-1])
+        if not (is_first or is_last):
+            continue
+
+        orig_btn_draw = btn._draw
+
+        def make_patched_draw(b, first, last, orig):
+            def patched_btn_draw(no_color_updates=False):
+                orig(no_color_updates)
+                b._canvas.configure(bg=card_bg)
+                if first:
+                    b._canvas.itemconfig("background_corner_top_right", fill="#000000")
+                    b._canvas.itemconfig("background_corner_bottom_right", fill="#000000")
+                if last:
+                    b._canvas.itemconfig("background_corner_top_left", fill="#000000")
+                    b._canvas.itemconfig("background_corner_bottom_left", fill="#000000")
+            return patched_btn_draw
+
+        btn._draw = make_patched_draw(btn, is_first, is_last, orig_btn_draw)
+
+
 class YT2PDFApp(ctk.CTk):
     """Main application window for YT2PDF with Neo-Brutalist UI styling."""
 
@@ -284,6 +336,7 @@ class YT2PDFApp(ctk.CTk):
         )
         self.source_segmented.set(SourceType.YOUTUBE.value)
         self.source_segmented.pack(side="left", fill="x", expand=True)
+        clean_segmented_button_outer_edges(self.source_segmented, card_bg="#ffffff")
 
         # Input source row
         self.input_label = ctk.CTkLabel(
@@ -513,6 +566,7 @@ class YT2PDFApp(ctk.CTk):
             border_width=2,
             border_color="#000000"
         )
+        apply_neo_slider_thumb_outline(slider, outline_width=1.0)
         slider.pack(fill="x", pady=(2, 0))
         return slider, val_label
 
@@ -1736,6 +1790,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             border_width=2,
             border_color="#000000"
         )
+        apply_neo_slider_thumb_outline(self.similarity_slider, outline_width=1.0)
         self.similarity_slider.set(0.94)
         self.similarity_slider.pack(fill="x", padx=16, pady=(2, 10))
 
