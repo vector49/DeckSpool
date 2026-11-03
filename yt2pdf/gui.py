@@ -728,19 +728,23 @@ class YT2PDFApp(ctk.CTk):
 
         m_row1 = ctk.CTkFrame(metrics_frame, fg_color="transparent")
         m_row1.pack(fill="x", pady=(0, 8))
+        m_row1.grid_columnconfigure(0, weight=1, uniform="kpi")
+        m_row1.grid_columnconfigure(1, weight=1, uniform="kpi")
 
         self.card_time, self.val_time = self._create_kpi_badge(m_row1, "TIME / DURATION", "00:00 / 00:00", bg_color=COLOR_NEO_YELLOW)
         self.card_speed, self.val_speed = self._create_kpi_badge(m_row1, "PROCESSING SPEED", "0 FPS (0.0x)", bg_color=COLOR_NEO_BLUE)
-        self.card_time.pack(side="left", fill="both", expand=True, padx=(0, 4))
-        self.card_speed.pack(side="right", fill="both", expand=True, padx=(4, 0))
+        self.card_time.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self.card_speed.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
         m_row2 = ctk.CTkFrame(metrics_frame, fg_color="transparent")
         m_row2.pack(fill="x")
+        m_row2.grid_columnconfigure(0, weight=1, uniform="kpi")
+        m_row2.grid_columnconfigure(1, weight=1, uniform="kpi")
 
         self.card_slides, self.val_slides = self._create_kpi_badge(m_row2, "SLIDES CAPTURED", "0 slides", bg_color=COLOR_NEO_GREEN)
         self.card_eta, self.val_eta = self._create_kpi_badge(m_row2, "EST. REMAINING", "--:--", bg_color=COLOR_NEO_ORANGE)
-        self.card_slides.pack(side="left", fill="both", expand=True, padx=(0, 4))
-        self.card_eta.pack(side="right", fill="both", expand=True, padx=(4, 0))
+        self.card_slides.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self.card_eta.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
         # Live Slide Thumbnail Card
         ctk.CTkLabel(
@@ -820,15 +824,15 @@ class YT2PDFApp(ctk.CTk):
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color="#000000"
         )
-        t_lbl.pack(anchor="w", padx=12, pady=(6, 1))
+        t_lbl.pack(anchor="w", padx=10, pady=(6, 1))
 
         v_lbl = ctk.CTkLabel(
             badge,
             text=initial_val,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=13, weight="bold"),
             text_color="#000000"
         )
-        v_lbl.pack(anchor="w", padx=12, pady=(0, 6))
+        v_lbl.pack(anchor="w", padx=10, pady=(0, 6))
         return badge, v_lbl
 
     def _create_footer(self):
@@ -1822,10 +1826,15 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
         self.b_pruned, self.lbl_pruned = self._create_mini_badge(metrics_row, "DUPLICATES PRUNED", "0", bg_color=COLOR_NEO_ORANGE)
         self.b_narrator, self.lbl_narrator = self._create_mini_badge(metrics_row, "NARRATOR CUTS", "0", bg_color=COLOR_NEO_PINK)
 
-        self.b_total.pack(side="left", fill="both", expand=True, padx=(0, 4))
-        self.b_kept.pack(side="left", fill="both", expand=True, padx=4)
-        self.b_pruned.pack(side="left", fill="both", expand=True, padx=4)
-        self.b_narrator.pack(side="left", fill="both", expand=True, padx=(4, 0))
+        metrics_row.grid_columnconfigure(0, weight=1, uniform="mini_kpi")
+        metrics_row.grid_columnconfigure(1, weight=1, uniform="mini_kpi")
+        metrics_row.grid_columnconfigure(2, weight=1, uniform="mini_kpi")
+        metrics_row.grid_columnconfigure(3, weight=1, uniform="mini_kpi")
+
+        self.b_total.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self.b_kept.grid(row=0, column=1, sticky="nsew", padx=4)
+        self.b_pruned.grid(row=0, column=2, sticky="nsew", padx=4)
+        self.b_narrator.grid(row=0, column=3, sticky="nsew", padx=(4, 0))
 
         # Duplicate Details Log
         ctk.CTkLabel(
