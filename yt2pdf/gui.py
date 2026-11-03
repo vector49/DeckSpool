@@ -106,56 +106,114 @@ def create_neo_card_header(parent, title: str, badge_color: str = COLOR_NEO_YELL
     return head
 
 
-def apply_neo_slider_thumb_outline(slider: ctk.CTkSlider, outline_width: float = 1.0):
-    """Draws a crisp thin black outline around the circular thumb marker of a CTkSlider."""
+def apply_neo_slider_thumb_outline(slider: ctk.CTkSlider, outline_width: float = 1.5):
+    """Draws a crisp thin black outline around the circular thumb marker of a CTkSlider without any font glyph bleed."""
     orig_draw = slider._draw
 
     def patched_draw(no_color_updates=False):
         orig_draw(no_color_updates)
+        # Clear the underlying font shape text so no white sliver/gap bleeds outside the outline
+        slider._canvas.itemconfig("slider_parts", text="")
         coords = slider._canvas.coords("slider_oval_1_a")
         if coords and len(coords) >= 2:
             cx, cy = coords[0], coords[1]
-            r = (slider._apply_widget_scaling(slider._current_height) / 2) - 0.5
-            if not slider._canvas.find_withtag("thumb_outline"):
+            r = slider._apply_widget_scaling(slider._current_height) / 2
+            fill_col = slider._button_hover_color if slider._hover_state else slider._button_color
+            fill_actual = slider._apply_appearance_mode(fill_col)
+            if not slider._canvas.find_withtag("neo_thumb"):
                 slider._canvas.create_oval(
                     cx - r, cy - r, cx + r, cy + r,
+                    fill=fill_actual,
                     outline="#000000",
                     width=outline_width,
-                    tags=("thumb_outline",)
+                    tags=("neo_thumb",)
                 )
             else:
-                slider._canvas.coords("thumb_outline", cx - r, cy - r, cx + r, cy + r)
-            slider._canvas.tag_raise("thumb_outline")
+                slider._canvas.coords("neo_thumb", cx - r, cy - r, cx + r, cy + r)
+                slider._canvas.itemconfig("neo_thumb", fill=fill_actual, outline="#000000", width=outline_width)
+            slider._canvas.tag_raise("neo_thumb")
 
     slider._draw = patched_draw
 
 
-def clean_segmented_button_outer_edges(segmented_btn: ctk.CTkSegmentedButton, card_bg: str = "#ffffff"):
+class NeoStandaloneButtonGroup(ctk.CTkFrame):
     """
-    Eliminates the canvas corner artifact line next to the outer buttons
-    in a CTkSegmentedButton by routing the outermost background corners to the card background.
+    A Neo-Brutalist selector composed of standalone rounded-rectangle buttons.
+    Eliminates the fused outline and connecting black bridge so each option is an independent button.
     """
-    for val, btn in segmented_btn._buttons_dict.items():
-        is_first = (val == segmented_btn._value_list[0])
-        is_last = (val == segmented_btn._value_list[-1])
-        if not (is_first or is_last):
-            continue
 
-        orig_btn_draw = btn._draw
+    def __init__(
+        self,
+        master,
+        values: list[str],
+        command: Optional[Callable[[str], None]] = None,
+        height: int = 34,
+        selected: Optional[str] = None,
+        **kwargs
+    ):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self.command = command
+        self._values = list(values)
+        self._current_value = selected if selected in self._values else self._values[0]
+        self._buttons: dict[str, ctk.CTkButton] = {}
+        self._state = "normal"
 
-        def make_patched_draw(b, first, last, orig):
-            def patched_btn_draw(no_color_updates=False):
-                orig(no_color_updates)
-                b._canvas.configure(bg=card_bg)
-                if first:
-                    b._canvas.itemconfig("background_corner_top_right", fill="#000000")
-                    b._canvas.itemconfig("background_corner_bottom_right", fill="#000000")
-                if last:
-                    b._canvas.itemconfig("background_corner_top_left", fill="#000000")
-                    b._canvas.itemconfig("background_corner_bottom_left", fill="#000000")
-            return patched_btn_draw
+        for i, val in enumerate(self._values):
+            padx = (0, 4) if i == 0 else (4, 0)
+            btn = ctk.CTkButton(
+                self,
+                text=val,
+                height=height,
+                corner_radius=8,
+                border_width=2,
+                border_color="#000000",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#000000",
+                text_color_disabled="#000000",
+                command=lambda v=val: self._on_btn_click(v)
+            )
+            btn.pack(side="left", fill="x", expand=True, padx=padx)
+            self._buttons[val] = btn
 
-        btn._draw = make_patched_draw(btn, is_first, is_last, orig_btn_draw)
+        self._refresh_styles()
+
+    def _refresh_styles(self):
+        for val, btn in self._buttons.items():
+            if val == self._current_value:
+                btn.configure(
+                    fg_color=COLOR_NEO_YELLOW,
+                    hover_color=COLOR_NEO_YELLOW_HOVER
+                )
+            else:
+                btn.configure(
+                    fg_color="#ffffff",
+                    hover_color="#f3f4f6"
+                )
+
+    def _on_btn_click(self, val: str):
+        self.set(val)
+        if self.command:
+            self.command(val)
+
+    def get(self) -> str:
+        return self._current_value
+
+    def set(self, val: str):
+        if val in self._values:
+            self._current_value = val
+            self._refresh_styles()
+
+    def configure(self, **kwargs):
+        if "state" in kwargs:
+            self._state = kwargs.pop("state")
+            for btn in self._buttons.values():
+                btn.configure(state=self._state)
+        super().configure(**kwargs)
+
+    def cget(self, attribute_name: str):
+        if attribute_name == "state":
+            return self._state
+        return super().cget(attribute_name)
 
 
 class YT2PDFApp(ctk.CTk):
@@ -319,24 +377,14 @@ class YT2PDFApp(ctk.CTk):
             text_color=COLOR_TEXT
         ).pack(side="left")
 
-        self.source_segmented = ctk.CTkSegmentedButton(
+        self.source_segmented = NeoStandaloneButtonGroup(
             src_row,
             values=[SourceType.YOUTUBE.value, SourceType.LOCAL_FILE.value],
             command=self._on_source_type_changed,
-            fg_color="#000000",
-            selected_color=COLOR_NEO_YELLOW,
-            selected_hover_color=COLOR_NEO_YELLOW_HOVER,
-            unselected_color="#ffffff",
-            unselected_hover_color="#f3f4f6",
-            text_color="#000000",
-            text_color_disabled="#000000",
-            border_width=2,
-            corner_radius=8,
-            font=ctk.CTkFont(size=12, weight="bold")
+            height=34,
+            selected=SourceType.YOUTUBE.value
         )
-        self.source_segmented.set(SourceType.YOUTUBE.value)
         self.source_segmented.pack(side="left", fill="x", expand=True)
-        clean_segmented_button_outer_edges(self.source_segmented, card_bg="#ffffff")
 
         # Input source row
         self.input_label = ctk.CTkLabel(
@@ -566,7 +614,7 @@ class YT2PDFApp(ctk.CTk):
             border_width=2,
             border_color="#000000"
         )
-        apply_neo_slider_thumb_outline(slider, outline_width=1.0)
+        apply_neo_slider_thumb_outline(slider, outline_width=1.5)
         slider.pack(fill="x", pady=(2, 0))
         return slider, val_label
 
@@ -1790,7 +1838,7 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             border_width=2,
             border_color="#000000"
         )
-        apply_neo_slider_thumb_outline(self.similarity_slider, outline_width=1.0)
+        apply_neo_slider_thumb_outline(self.similarity_slider, outline_width=1.5)
         self.similarity_slider.set(0.94)
         self.similarity_slider.pack(fill="x", padx=16, pady=(2, 10))
 
