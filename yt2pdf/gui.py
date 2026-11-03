@@ -209,6 +209,10 @@ class YT2PDFApp(ctk.CTk):
         )
         self.left_col.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
+        # Fix: bind mouse scroll to all children of the scrollable frame (Windows fix)
+        self.left_col.bind("<Enter>", self._on_left_col_enter)
+        self.left_col.bind("<Leave>", self._on_left_col_leave)
+
         # Right Column (Live metrics, preview, and controls)
         self.right_col = ctk.CTkFrame(
             self.container,
@@ -461,7 +465,7 @@ class YT2PDFApp(ctk.CTk):
             border_width=2,
             border_color="#000000"
         )
-        badge.pack(side="right")
+        badge.pack(side="right", pady=(1, 1))  # Symmetric vertical padding ensures all 4 border sides render
 
         val_label = ctk.CTkLabel(
             badge,
@@ -491,10 +495,10 @@ class YT2PDFApp(ctk.CTk):
             variable=slider_var,
             command=on_slider_move,
             height=16,
-            fg_color="#e5e7eb",
-            progress_color="#000000",
-            button_color=COLOR_NEO_PINK,
-            button_hover_color=COLOR_NEO_PINK_HOVER,
+            fg_color="#d8b4fe",        # Soft pastel lavender track (unfilled portion)
+            progress_color="#a855f7",  # Richer lilac for filled portion
+            button_color="#ffffff",    # Bright white round marker for contrast
+            button_hover_color="#f3e8ff",
             border_width=2,
             border_color="#000000"
         )
@@ -701,7 +705,7 @@ class YT2PDFApp(ctk.CTk):
             height=14,
             corner_radius=7,
             fg_color="#ffffff",
-            progress_color=COLOR_NEO_GREEN,
+            progress_color="#ffffff",   # Starts transparent/clear (no fill until extraction begins)
             border_width=2,
             border_color="#000000"
         )
@@ -827,6 +831,44 @@ class YT2PDFApp(ctk.CTk):
         ).pack(side="left")
 
     # ---------------- UI Event Handlers ----------------
+
+    def _bind_mousewheel_to_left_col(self, widget):
+        """Recursively bind mousewheel events so scroll works anywhere in the left panel."""
+        try:
+            widget.bind("<MouseWheel>", self._on_left_col_scroll, add="+")
+        except (NotImplementedError, Exception):
+            pass
+        try:
+            for child in widget.winfo_children():
+                self._bind_mousewheel_to_left_col(child)
+        except Exception:
+            pass
+
+    def _on_left_col_scroll(self, event):
+        """Forward mousewheel events to the scrollable frame's internal canvas."""
+        try:
+            self.left_col._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        except Exception:
+            pass
+
+    def _on_left_col_enter(self, event=None):
+        """Bind mousewheel when the cursor enters the left panel."""
+        self._bind_mousewheel_to_left_col(self.left_col)
+
+    def _on_left_col_leave(self, event=None):
+        """Unbind mousewheel when the cursor leaves the left panel."""
+        self._unbind_mousewheel_from_left_col(self.left_col)
+
+    def _unbind_mousewheel_from_left_col(self, widget):
+        try:
+            widget.unbind("<MouseWheel>")
+        except Exception:
+            pass
+        try:
+            for child in widget.winfo_children():
+                self._unbind_mousewheel_from_left_col(child)
+        except Exception:
+            pass
 
     def _on_source_type_changed(self, value):
         self._update_source_type_ui(value, clear_input=True)
@@ -1095,6 +1137,7 @@ class YT2PDFApp(ctk.CTk):
         self._set_processing_ui_state(True)
         self.cancel_event.clear()
         self.status_label.configure(text="Starting extraction pipeline...", text_color="#000000")
+        self.progress_bar.configure(progress_color=COLOR_NEO_GREEN)  # Activate green fill
         self.progress_bar.set(0.0)
         self.val_slides.configure(text="0 slides")
         self.val_time.configure(text="00:00 / 00:00")
@@ -1364,6 +1407,7 @@ class YT2PDFApp(ctk.CTk):
 
     def _handle_error(self, error_message: str):
         self._set_processing_ui_state(False)
+        self.progress_bar.configure(progress_color="#ffffff")  # Clear bar on error
         self.progress_bar.set(0.0)
         self.val_eta.configure(text="--:--")
         self.status_label.configure(text="Error occurred during extraction.", text_color=COLOR_NEO_RED)
@@ -1371,6 +1415,7 @@ class YT2PDFApp(ctk.CTk):
 
     def _handle_cancellation(self):
         self._set_processing_ui_state(False)
+        self.progress_bar.configure(progress_color="#ffffff")  # Clear bar on cancel
         self.progress_bar.set(0.0)
         self.val_eta.configure(text="--:--")
         self.status_label.configure(text="Extraction cancelled by user.", text_color="#000000")
@@ -1644,10 +1689,10 @@ class DeduplicatePDFDialog(ctk.CTkToplevel):
             number_of_steps=19,
             command=lambda v: self.threshold_label.configure(text=f"{int(v * 100)}%"),
             height=16,
-            fg_color="#e5e7eb",
-            progress_color="#000000",
-            button_color=COLOR_NEO_PINK,
-            button_hover_color=COLOR_NEO_PINK_HOVER,
+            fg_color="#d8b4fe",
+            progress_color="#a855f7",
+            button_color="#ffffff",
+            button_hover_color="#f3e8ff",
             border_width=2,
             border_color="#000000"
         )
