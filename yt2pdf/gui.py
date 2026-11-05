@@ -2202,7 +2202,7 @@ class DeduplicatePDFDialog(QDialog):
         bar_layout.setContentsMargins(16, 4, 16, 2)
         bar_layout.setSpacing(8)
 
-        self.run_btn = NeoButton("Review & Truncate Duplicates", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=40, font_size=12, parent=btn_action_row)
+        self.run_btn = NeoButton("Review and Truncate Duplicates", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=40, font_size=12, parent=btn_action_row)
         self.run_btn.clicked.connect(self._on_start_dedup)
         bar_layout.addWidget(self.run_btn, stretch=1)
 
@@ -2246,9 +2246,15 @@ class DeduplicatePDFDialog(QDialog):
 
         self.status_label = NeoLabel("Ready to review PDF", self.dialog_status_box)
         self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("color: #000000; border: none; background: transparent;")
         dsb_layout.addWidget(self.status_label)
-        cr_layout.addWidget(self.dialog_status_box)
+
+        status_row = QWidget(self.card_results)
+        sr_layout = QHBoxLayout(status_row)
+        sr_layout.setContentsMargins(16, 0, 16, 0)
+        sr_layout.addWidget(self.dialog_status_box)
+        cr_layout.addWidget(status_row)
 
         # Progress bar
         pb_box = QWidget(self.card_results)
@@ -2296,7 +2302,7 @@ class DeduplicatePDFDialog(QDialog):
                 padding: 6px;
             }
         """)
-        self.details_textbox.setText("Click 'Review & Truncate Duplicates' to scan the PDF...")
+        self.details_textbox.setText("Click 'Review and Truncate Duplicates' to scan the PDF...")
         tb_layout.addWidget(self.details_textbox)
         cr_layout.addWidget(txt_box)
 
