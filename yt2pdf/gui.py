@@ -125,6 +125,7 @@ class NeoLabel(QLabel):
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
         self.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.setStyleSheet("color: #000000;")
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "text":
@@ -458,7 +459,7 @@ class NeoStandaloneButtonGroup(QWidget):
         parent=None,
         values: Optional[List[str]] = None,
         command: Optional[Callable[[str], None]] = None,
-        height: int = 34,
+        height: int = 36,
         selected: Optional[str] = None,
     ):
         super().__init__(parent)
@@ -470,12 +471,13 @@ class NeoStandaloneButtonGroup(QWidget):
         self._height = height
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 2, 16, 4)
+        layout.setSpacing(16)
 
         for val in self._values:
             btn = QPushButton(val, self)
             btn.setFixedHeight(height)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, v=val: self._on_btn_click(v))
             layout.addWidget(btn)
@@ -500,22 +502,43 @@ class NeoStandaloneButtonGroup(QWidget):
                     QPushButton:hover {{
                         background-color: {COLOR_NEO_YELLOW_HOVER};
                     }}
+                    QPushButton:pressed {{
+                        background-color: {COLOR_NEO_YELLOW_HOVER};
+                        padding-top: 6px;
+                        padding-left: 14px;
+                    }}
+                    QPushButton:disabled {{
+                        background-color: #f3f4f6;
+                        color: #9ca3af;
+                        border-color: #9ca3af;
+                    }}
                 """)
             else:
                 btn.setStyleSheet("""
-                    QPushButton {{
-                        background-color: #ffffff;
-                        color: #000000;
+                    QPushButton {
+                        background-color: #e5e7eb;
+                        color: #4b5563;
                         border: 2px solid #000000;
                         border-radius: 8px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
                         padding: 4px 12px;
-                    }}
-                    QPushButton:hover {{
+                    }
+                    QPushButton:hover {
+                        background-color: #d1d5db;
+                        color: #000000;
+                    }
+                    QPushButton:pressed {
+                        background-color: #9ca3af;
+                        padding-top: 6px;
+                        padding-left: 14px;
+                    }
+                    QPushButton:disabled {
                         background-color: #f3f4f6;
-                    }}
+                        color: #9ca3af;
+                        border-color: #9ca3af;
+                    }
                 """)
 
     def _on_btn_click(self, val: str):
@@ -906,29 +929,19 @@ class YT2PDFApp(QMainWindow):
 
         card_layout.addWidget(create_neo_card_header("[ 01 ] INPUT & OUTPUT DESTINATION", COLOR_NEO_YELLOW, card))
 
-        # Source Type selector row
-        src_row = QWidget(card)
-        src_layout = QHBoxLayout(src_row)
-        src_layout.setContentsMargins(16, 0, 16, 4)
-        src_layout.setSpacing(10)
-
-        src_lbl = NeoLabel("Source Type:", src_row)
-        src_lbl.setFixedWidth(90)
-        src_layout.addWidget(src_lbl)
-
+        # Source Type selector: Equi-spaced buttons directly in card layout
         self.source_segmented = NeoStandaloneButtonGroup(
-            src_row,
+            card,
             values=[SourceType.YOUTUBE.value, SourceType.LOCAL_FILE.value],
             command=self._on_source_type_changed,
-            height=34,
+            height=36,
             selected=SourceType.YOUTUBE.value,
         )
-        src_layout.addWidget(self.source_segmented, stretch=1)
-        card_layout.addWidget(src_row)
+        card_layout.addWidget(self.source_segmented)
 
         # Input source label
         self.input_label = NeoLabel("YouTube URL:", card)
-        self.input_label.setStyleSheet("padding-left: 16px; padding-top: 4px;")
+        self.input_label.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
         card_layout.addWidget(self.input_label)
 
         # Input entry row
@@ -957,7 +970,7 @@ class YT2PDFApp(QMainWindow):
 
         # Output PDF destination label
         out_lbl = NeoLabel("Output PDF File:", card)
-        out_lbl.setStyleSheet("padding-left: 16px; padding-top: 4px;")
+        out_lbl.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
         card_layout.addWidget(out_lbl)
 
         # Output entry row

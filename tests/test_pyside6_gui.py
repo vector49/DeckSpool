@@ -48,10 +48,20 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertEqual(self.gui.scroll_area.verticalScrollBar().singleStep(), 16)
 
     def test_source_type_toggle(self):
-        """Verify switching between YouTube URL and Local File updates inputs and buttons."""
+        """Verify switching between YouTube URL and Local File updates inputs, keeps both buttons visible, and applies yellow/grey styles."""
         self.assertEqual(self.gui.source_segmented.get(), SourceType.YOUTUBE.value)
         self.assertTrue(self.gui.input_browse_btn.isHidden())
         self.assertEqual(self.gui.input_label.text(), "YouTube URL:")
+
+        # Both buttons must be visible at all times (neither should disappear)
+        btn_yt = self.gui.source_segmented._buttons[SourceType.YOUTUBE.value]
+        btn_local = self.gui.source_segmented._buttons[SourceType.LOCAL_FILE.value]
+        self.assertFalse(btn_yt.isHidden())
+        self.assertFalse(btn_local.isHidden())
+
+        # When YouTube is selected: YouTube is yellow (#ffd166), Local File is greyed out (#e5e7eb)
+        self.assertIn("#ffd166", btn_yt.styleSheet())
+        self.assertIn("#e5e7eb", btn_local.styleSheet())
 
         # Switch to Local File
         self.gui.source_segmented._on_btn_click(SourceType.LOCAL_FILE.value)
@@ -60,12 +70,48 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertFalse(self.gui.input_browse_btn.isHidden())
         self.assertEqual(self.gui.input_label.text(), "Local Video File:")
 
+        # Neither button disappears, styles flip: Local File is yellow, YouTube is greyed out
+        self.assertFalse(btn_yt.isHidden())
+        self.assertFalse(btn_local.isHidden())
+        self.assertIn("#ffd166", btn_local.styleSheet())
+        self.assertIn("#e5e7eb", btn_yt.styleSheet())
+
         # Switch back to YouTube
         self.gui.source_segmented._on_btn_click(SourceType.YOUTUBE.value)
         self.gui.update_idletasks()
         self.assertEqual(self.gui.source_segmented.get(), SourceType.YOUTUBE.value)
         self.assertTrue(self.gui.input_browse_btn.isHidden())
         self.assertEqual(self.gui.input_label.text(), "YouTube URL:")
+        self.assertIn("#ffd166", btn_yt.styleSheet())
+        self.assertIn("#e5e7eb", btn_local.styleSheet())
+
+    def test_source_buttons_equi_spaced(self):
+        """Verify that the two buttons are equi-spaced between them and the outer carrier box."""
+        self.gui.show()
+        self.gui.update_idletasks()
+        btn_yt = self.gui.source_segmented._buttons[SourceType.YOUTUBE.value]
+        btn_local = self.gui.source_segmented._buttons[SourceType.LOCAL_FILE.value]
+        card = self.gui.findChild(object, "card_01")
+
+        # Map button positions to card coordinates
+        pos_yt = self.gui.source_segmented.mapTo(card, btn_yt.geometry().topLeft())
+        pos_local = self.gui.source_segmented.mapTo(card, btn_local.geometry().topLeft())
+
+        card_inner_left = 3  # card border width
+        card_inner_right = card.width() - 3
+
+        left_gap = pos_yt.x() - card_inner_left
+        center_gap = pos_local.x() - (pos_yt.x() + btn_yt.width())
+        right_gap = card_inner_right - (pos_local.x() + btn_local.width())
+
+        # Left, center, and right gaps must be equal (16px)
+        self.assertEqual(left_gap, 16)
+        self.assertEqual(center_gap, 16)
+        self.assertEqual(right_gap, 16)
+        # Both buttons must have equal width and height
+        self.assertEqual(btn_yt.width(), btn_local.width())
+        self.assertEqual(btn_yt.height(), 36)
+        self.assertEqual(btn_local.height(), 36)
 
     def test_input_path_sanitization_and_auto_switching(self):
         """Verify path cleaning, quote stripping, and automatic mode switching."""
