@@ -273,14 +273,14 @@ class NeoEntry(QLineEdit):
 class NeoSwitch(QCheckBox):
     """
     Neo-Brutalist pill toggle switch with crisp 2px black outline,
-    punchy green fill when active, and solid black thumb knob.
+    punchy green fill when active, solid black thumb knob, and dynamic responsive label wrapping.
     """
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
         self.setCursor(Qt.PointingHandCursor)
         self.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.setFixedHeight(30)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
     def sizeHint(self) -> QSize:
         fm = self.fontMetrics()
@@ -290,7 +290,21 @@ class NeoSwitch(QCheckBox):
         return QSize(w, h)
 
     def minimumSizeHint(self) -> QSize:
-        return self.sizeHint()
+        fm = self.fontMetrics()
+        h = max(30, fm.height() + 8)
+        return QSize(80, h)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        if not self.text():
+            return 30
+        fm = self.fontMetrics()
+        text_x = 40 + 14
+        avail_w = max(10, width - text_x - 10)
+        rect = fm.boundingRect(QRect(0, 0, avail_w, 10000), Qt.TextWordWrap, self.text())
+        return max(30, rect.height() + 10)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -327,8 +341,9 @@ class NeoSwitch(QCheckBox):
             painter.setPen(QColor("#000000") if self.isEnabled() else QColor("#9ca3af"))
             painter.setFont(self.font())
             text_x = track_x + track_w + 12
-            text_rect = QRect(text_x, 0, self.width() - text_x, self.height())
-            painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, self.text())
+            text_w = max(10, self.width() - text_x)
+            text_rect = QRect(text_x, 0, text_w, self.height())
+            painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft | Qt.TextWordWrap, self.text())
 
     def get(self) -> int:
         return 1 if self.isChecked() else 0
@@ -892,6 +907,7 @@ class YT2PDFApp(QMainWindow):
         self.scroll_area = QScrollArea(self.content_splitter)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setStyleSheet("""
             QScrollArea {
                 background: transparent;
@@ -918,13 +934,16 @@ class YT2PDFApp(QMainWindow):
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: none;
             }
+            QScrollBar:horizontal {
+                height: 0px;
+            }
         """)
         self.scroll_area.verticalScrollBar().setSingleStep(16)
 
         self.left_col_widget = QWidget()
         self.left_col_widget.setStyleSheet("background: transparent;")
         self.left_col_layout = QVBoxLayout(self.left_col_widget)
-        self.left_col_layout.setContentsMargins(0, 0, 8, 0)
+        self.left_col_layout.setContentsMargins(0, 0, 10, 0)
         self.left_col_layout.setSpacing(12)
 
         # Build Configuration Cards
@@ -1180,7 +1199,6 @@ class YT2PDFApp(QMainWindow):
         self.mask_presenter_switch = NeoSwitch("Mask Presenter / PIP Webcam", pip_toggle_row)
         self.mask_presenter_switch.toggled.connect(self._on_toggle_presenter_mask)
         pt_layout.addWidget(self.mask_presenter_switch)
-        pt_layout.addStretch()
         card_layout.addWidget(pip_toggle_row)
 
         # PIP Mode Sub-frame (Buttercream card)
@@ -1252,7 +1270,6 @@ class YT2PDFApp(QMainWindow):
             if default_on:
                 sw.select()
             t_layout.addWidget(sw)
-            t_layout.addStretch()
             card_layout.addWidget(t_row)
             setattr(self, attr_name, sw)
 
@@ -2177,7 +2194,6 @@ class DeduplicatePDFDialog(QDialog):
         self.dialog_filter_narrator_switch = NeoSwitch("Filter Full-Human / Narrator Frames (Remove camera cuts to speaker)", narr_row)
         self.dialog_filter_narrator_switch.select()
         nr_layout.addWidget(self.dialog_filter_narrator_switch)
-        nr_layout.addStretch()
         cc_layout.addWidget(narr_row)
 
         # Action Buttons

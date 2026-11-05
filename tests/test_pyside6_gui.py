@@ -294,6 +294,31 @@ class TestPySide6GUI(unittest.TestCase):
         dialog.destroy()
         self.gui.update_idletasks()
 
+    def test_dynamic_resizing_and_no_horizontal_scrollbar(self):
+        """Verify left column cards dynamically resize with window without horizontal scrollbars or clipping."""
+        self.gui.show()
+        self.gui.update_idletasks()
+
+        # Check horizontal scroll bar is permanently off
+        self.assertEqual(self.gui.scroll_area.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+
+        for test_w, test_h in [(980, 560), (1080, 660), (1400, 800)]:
+            self.gui.resize(test_w, test_h)
+            self.gui.update_idletasks()
+
+            vp_w = self.gui.scroll_area.viewport().width()
+            col_w = self.gui.left_col_widget.width()
+
+            # Left column widget must match viewport width (no overflow)
+            self.assertEqual(col_w, vp_w)
+            self.assertFalse(self.gui.scroll_area.horizontalScrollBar().isVisible())
+
+            # Cards must stretch to fit viewport width with exactly 10px margin
+            for card_id in ["card_01", "card_02", "card_03"]:
+                card = self.gui.findChild(object, card_id)
+                self.assertIsNotNone(card)
+                self.assertEqual(card.width(), vp_w - 10)
+
 
 if __name__ == "__main__":
     unittest.main()
