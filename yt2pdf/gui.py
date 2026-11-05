@@ -149,7 +149,7 @@ class NeoButton(QPushButton):
         bg_color=COLOR_NEO_YELLOW,
         hover_color=COLOR_NEO_YELLOW_HOVER,
         height=38,
-        corner_radius=8,
+        corner_radius=0,
         font_size=12,
         parent=None,
     ):
@@ -222,7 +222,7 @@ class NeoEntry(QLineEdit):
                 background-color: #ffffff;
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
                 font-weight: bold;
@@ -321,20 +321,20 @@ class NeoSwitch(QCheckBox):
         if not self.isEnabled():
             bg_col = QColor("#f3f4f6")
 
-        # Draw track pill
+        # Draw sharp rectangular track
         pen = QPen(QColor("#000000"), 2)
         painter.setPen(pen)
         painter.setBrush(QBrush(bg_col))
-        painter.drawRoundedRect(track_x, track_y, track_w, track_h, 11, 11)
+        painter.drawRect(track_x, track_y, track_w, track_h)
 
-        # Draw circular thumb knob
-        thumb_r = 7.5
-        thumb_y = track_y + (track_h - thumb_r * 2) // 2
-        thumb_x = (track_x + track_w - thumb_r * 2 - 3.5) if checked else (track_x + 3.5)
+        # Draw sharp square thumb knob
+        thumb_s = 15
+        thumb_y = track_y + (track_h - thumb_s) // 2
+        thumb_x = (track_x + track_w - thumb_s - 3.5) if checked else (track_x + 3.5)
 
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor("#000000") if self.isEnabled() else QColor("#9ca3af")))
-        painter.drawEllipse(int(thumb_x), int(thumb_y), int(thumb_r * 2), int(thumb_r * 2))
+        painter.drawRect(int(thumb_x), int(thumb_y), thumb_s, thumb_s)
 
         # Draw text label
         if self.text():
@@ -385,13 +385,13 @@ class NeoSlider(QSlider):
                 border: 2px solid #000000;
                 height: 10px;
                 background: {COLOR_TRACK_LILAC};
-                border-radius: 5px;
+                border-radius: 0px;
             }}
             QSlider::sub-page:horizontal {{
                 background: {COLOR_PROGRESS_PURPLE};
                 border: 2px solid #000000;
                 height: 10px;
-                border-radius: 5px;
+                border-radius: 0px;
             }}
             QSlider::handle:horizontal {{
                 background: #ffffff;
@@ -399,7 +399,7 @@ class NeoSlider(QSlider):
                 width: 20px;
                 height: 20px;
                 margin: -6px 0;
-                border-radius: 10px;
+                border-radius: 0px;
             }}
             QSlider::handle:horizontal:hover {{
                 background: #f3e8ff;
@@ -450,13 +450,13 @@ class NeoProgressBar(QProgressBar):
         self.setStyleSheet(f"""
             QProgressBar {{
                 border: 2px solid #000000;
-                border-radius: 6px;
+                border-radius: 0px;
                 background-color: #ffffff;
                 height: 12px;
             }}
             QProgressBar::chunk {{
                 background-color: {self._progress_color};
-                border-radius: 4px;
+                border-radius: 0px;
             }}
         """)
 
@@ -518,7 +518,7 @@ class NeoStandaloneButtonGroup(QWidget):
                         background-color: {COLOR_NEO_YELLOW};
                         color: #000000;
                         border: 2px solid #000000;
-                        border-radius: 8px;
+                        border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
@@ -544,7 +544,7 @@ class NeoStandaloneButtonGroup(QWidget):
                         background-color: #e5e7eb;
                         color: #4b5563;
                         border: 2px solid #000000;
-                        border-radius: 8px;
+                        border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
@@ -604,7 +604,7 @@ class NeoComboBox(QComboBox):
                 background-color: #ffffff;
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
                 font-weight: bold;
@@ -622,8 +622,7 @@ class NeoComboBox(QComboBox):
                 width: 28px;
                 border-left: 2px solid #000000;
                 background-color: {COLOR_NEO_YELLOW};
-                border-top-right-radius: 6px;
-                border-bottom-right-radius: 6px;
+                border-radius: 0px;
             }}
             QComboBox::drop-down:disabled {{
                 background-color: #e5e7eb;
@@ -638,7 +637,7 @@ class NeoComboBox(QComboBox):
                 background-color: #ffffff;
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 6px;
+                border-radius: 0px;
                 selection-background-color: {COLOR_NEO_YELLOW};
                 selection-color: #000000;
                 font-family: 'Segoe UI', sans-serif;
@@ -726,12 +725,12 @@ def create_neo_card_header(title: str, badge_color: str = COLOR_NEO_YELLOW, pare
 
     for dot_col in ["#ff5f56", "#ffbd2e", "#27c93f"]:
         dot = QFrame(dots_box)
-        dot.setFixedSize(13, 13)
+        dot.setFixedSize(12, 12)
         dot.setStyleSheet(f"""
             QFrame {{
                 background-color: {dot_col};
                 border: 1.5px solid #000000;
-                border-radius: 6px;
+                border-radius: 0px;
             }}
         """)
         dots_layout.addWidget(dot)
@@ -744,7 +743,7 @@ def create_neo_card_header(title: str, badge_color: str = COLOR_NEO_YELLOW, pare
         QFrame {{
             background-color: {badge_color};
             border: 2px solid #000000;
-            border-radius: 6px;
+            border-radius: 0px;
         }}
     """)
     tag_layout = QHBoxLayout(tag)
@@ -858,7 +857,7 @@ class YT2PDFApp(QMainWindow):
             QFrame {{
                 background-color: {COLOR_NEO_YELLOW};
                 border: 2px solid #000000;
-                border-radius: 16px;
+                border-radius: 0px;
             }}
         """)
         sp_layout = QHBoxLayout(sub_pill)
@@ -918,12 +917,12 @@ class YT2PDFApp(QMainWindow):
                 background: #ffffff;
                 width: 14px;
                 margin: 0px;
-                border-radius: 7px;
+                border-radius: 0px;
             }
             QScrollBar::handle:vertical {
                 background: #000000;
                 min-height: 24px;
-                border-radius: 5px;
+                border-radius: 0px;
             }
             QScrollBar::handle:vertical:hover {
                 background: #374151;
@@ -962,7 +961,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#right_col_card {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         self._build_right_preview_panel()
@@ -978,7 +977,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#card_01 {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         card_layout = QVBoxLayout(card)
@@ -1058,7 +1057,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#card_02 {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         card_layout = QVBoxLayout(card)
@@ -1150,7 +1149,7 @@ class YT2PDFApp(QMainWindow):
                 background-color: {COLOR_NEO_YELLOW};
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 6px;
+                border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
             }}
@@ -1182,7 +1181,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#card_03 {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         card_layout = QVBoxLayout(card)
@@ -1208,7 +1207,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#pip_frame {{
                 background-color: {COLOR_CARD_BG_ALT};
                 border: 2px solid #000000;
-                border-radius: 10px;
+                border-radius: 0px;
             }}
         """)
         pf_layout = QVBoxLayout(self.pip_mode_frame)
@@ -1290,7 +1289,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#status_box {{
                 background-color: {COLOR_NEO_CREAM};
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
             }}
         """)
         sb_layout = QHBoxLayout(self.status_box)
@@ -1335,7 +1334,7 @@ class YT2PDFApp(QMainWindow):
             QFrame#preview_frame {{
                 background-color: #ffffff;
                 border: 2px solid #000000;
-                border-radius: 10px;
+                border-radius: 0px;
             }}
         """)
         pf_layout = QVBoxLayout(self.preview_frame)
@@ -1351,11 +1350,11 @@ class YT2PDFApp(QMainWindow):
         br_layout.setContentsMargins(0, 4, 0, 0)
         br_layout.setSpacing(8)
 
-        self.start_btn = NeoButton("Start Extraction", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=42, corner_radius=10, font_size=13, parent=btn_row)
+        self.start_btn = NeoButton("Start Extraction", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=42, corner_radius=0, font_size=13, parent=btn_row)
         self.start_btn.clicked.connect(self._on_start_clicked)
         br_layout.addWidget(self.start_btn, stretch=1)
 
-        self.cancel_btn = NeoButton("Cancel / Stop", bg_color=COLOR_NEO_RED, hover_color=COLOR_NEO_RED_HOVER, height=42, corner_radius=10, font_size=13, parent=btn_row)
+        self.cancel_btn = NeoButton("Cancel / Stop", bg_color=COLOR_NEO_RED, hover_color=COLOR_NEO_RED_HOVER, height=42, corner_radius=0, font_size=13, parent=btn_row)
         self.cancel_btn.setFixedWidth(120)
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.clicked.connect(self._on_cancel_clicked)
@@ -1370,7 +1369,7 @@ class YT2PDFApp(QMainWindow):
             QFrame {{
                 background-color: {bg_color};
                 border: 2px solid #000000;
-                border-radius: 10px;
+                border-radius: 0px;
             }}
         """)
         b_layout = QVBoxLayout(badge)
@@ -1597,7 +1596,7 @@ class YT2PDFApp(QMainWindow):
                 QFrame#pip_frame {{
                     background-color: {COLOR_CARD_BG_ALT};
                     border: 2px solid #000000;
-                    border-radius: 10px;
+                    border-radius: 0px;
                 }}
             """)
             if hasattr(self, "pip_pos_label"):
@@ -1618,7 +1617,7 @@ class YT2PDFApp(QMainWindow):
                 QFrame#pip_frame {
                     background-color: #f3f4f6;
                     border: 2px solid #d1d5db;
-                    border-radius: 10px;
+                    border-radius: 0px;
                 }
             """)
             if hasattr(self, "pip_pos_label"):
@@ -1861,7 +1860,7 @@ class CompletionDialog(QDialog):
             QFrame#comp_card {{
                 background-color: {COLOR_CARD_BG};
                 border: 3px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         c_layout = QVBoxLayout(card)
@@ -1877,7 +1876,7 @@ class CompletionDialog(QDialog):
             QFrame#info_card {{
                 background-color: {COLOR_CARD_BG_ALT};
                 border: 2px solid #000000;
-                border-radius: 10px;
+                border-radius: 0px;
             }}
         """)
         ic_layout = QVBoxLayout(info_card)
@@ -1997,12 +1996,12 @@ class DeduplicatePDFDialog(QDialog):
                 background: #ffffff;
                 width: 14px;
                 margin: 0px;
-                border-radius: 7px;
+                border-radius: 0px;
             }
             QScrollBar::handle:vertical {
                 background: #000000;
                 min-height: 24px;
-                border-radius: 5px;
+                border-radius: 0px;
             }
             QScrollBar::handle:vertical:hover {
                 background: #374151;
@@ -2041,7 +2040,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame {{
                 background-color: {COLOR_NEO_YELLOW};
                 border: 2px solid #000000;
-                border-radius: 16px;
+                border-radius: 0px;
             }}
         """)
         p_layout = QHBoxLayout(pill)
@@ -2067,7 +2066,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame#card_files {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         cf_layout = QVBoxLayout(card_files)
@@ -2141,7 +2140,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame#card_controls {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         cc_layout = QVBoxLayout(card_controls)
@@ -2168,7 +2167,7 @@ class DeduplicatePDFDialog(QDialog):
                 background-color: {COLOR_NEO_YELLOW};
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 6px;
+                border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
             }}
@@ -2227,7 +2226,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame#card_results {{
                 background-color: {COLOR_CARD_BG};
                 border: 2.5px solid #000000;
-                border-radius: 14px;
+                border-radius: 0px;
             }}
         """)
         cr_layout = QVBoxLayout(self.card_results)
@@ -2243,7 +2242,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame#dialog_status_box {{
                 background-color: {COLOR_NEO_CREAM};
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
             }}
         """)
         dsb_layout = QHBoxLayout(self.dialog_status_box)
@@ -2303,7 +2302,7 @@ class DeduplicatePDFDialog(QDialog):
                 background-color: #ffffff;
                 color: #000000;
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
                 padding: 6px;
             }
         """)
@@ -2344,7 +2343,7 @@ class DeduplicatePDFDialog(QDialog):
             QFrame {{
                 background-color: {bg_color};
                 border: 2px solid #000000;
-                border-radius: 8px;
+                border-radius: 0px;
             }}
         """)
         b_layout = QVBoxLayout(badge)
