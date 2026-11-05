@@ -2,6 +2,7 @@
 
 import sys
 import logging
+from PySide6.QtWidgets import QApplication
 from yt2pdf import __version__
 from yt2pdf.gui import YT2PDFApp
 
@@ -21,9 +22,15 @@ def main():
     logger = logging.getLogger("yt2pdf")
     logger.info(f"Starting YT2PDF v{__version__}...")
 
-    app = YT2PDFApp()
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    window = YT2PDFApp()
+    window.show()
+
     try:
-        app.mainloop()
+        sys.exit(app.exec())
     except KeyboardInterrupt:
         logger.info("Application closed by user.")
     except Exception as e:

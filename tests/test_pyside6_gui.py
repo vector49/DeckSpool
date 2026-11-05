@@ -1,0 +1,222 @@
+"""Unit and integration tests for PySide6 Qt6 GUI in YT2PDF."""
+
+import os
+import sys
+import queue
+import tempfile
+import threading
+import unittest
+import numpy as np
+
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+
+from yt2pdf.gui import YT2PDFApp, DeduplicatePDFDialog, CompletionDialog
+from yt2pdf.config import SourceType, PresenterMaskMode, WorkerMessage, WorkerMessageType
+from yt2pdf.deduplicator import DeduplicationResult
+
+
+class TestPySide6GUI(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication(sys.argv if sys.argv else [""])
+
+    def setUp(self):
+        self.gui = YT2PDFApp()
+        self.gui.update_idletasks()
+
+    def tearDown(self):
+        self.gui.destroy()
+        self.gui.update_idletasks()
+
+    def test_window_geometry_and_title(self):
+        """Test root container minimum and initial sizes and window title."""
+        self.assertIn("YT2PDF", self.gui.windowTitle())
+        self.assertGreaterEqual(self.gui.minimumWidth(), 980)
+        self.assertGreaterEqual(self.gui.minimumHeight(), 560)
+
+    def test_header_components(self):
+        """Test header buttons and titles."""
+        self.assertIsNotNone(self.gui.header_dedup_btn)
+        self.assertIsNotNone(self.gui.header_view_pdf_btn)
+        self.assertEqual(self.gui.header_view_pdf_btn.text(), "View PDF")
+        self.assertEqual(self.gui.header_dedup_btn.text(), "Review & Deduplicate PDF...")
+
+    def test_scroll_area_configuration(self):
+        """Verify left column QScrollArea settings for smooth scrolling."""
+        self.assertTrue(self.gui.scroll_area.widgetResizable())
+        self.assertEqual(self.gui.scroll_area.verticalScrollBar().singleStep(), 16)
+
+    def test_source_type_toggle(self):
+        """Verify switching between YouTube URL and Local File updates inputs and buttons."""
+        self.assertEqual(self.gui.source_segmented.get(), SourceType.YOUTUBE.value)
+        self.assertTrue(self.gui.input_browse_btn.isHidden())
+        self.assertEqual(self.gui.input_label.text(), "YouTube URL:")
+
+        # Switch to Local File
+        self.gui.source_segmented._on_btn_click(SourceType.LOCAL_FILE.value)
+        self.gui.update_idletasks()
+        self.assertEqual(self.gui.source_segmented.get(), SourceType.LOCAL_FILE.value)
+        self.assertFalse(self.gui.input_browse_btn.isHidden())
+        self.assertEqual(self.gui.input_label.text(), "Local Video File:")
+
+        # Switch back to YouTube
+        self.gui.source_segmented._on_btn_click(SourceType.YOUTUBE.value)
+        self.gui.update_idletasks()
+        self.assertEqual(self.gui.source_segmented.get(), SourceType.YOUTUBE.value)
+        self.assertTrue(self.gui.input_browse_btn.isHidden())
+        self.assertEqual(self.gui.input_label.text(), "YouTube URL:")
+
+    def test_input_path_sanitization_and_auto_switching(self):
+        """Verify path cleaning, quote stripping, and automatic mode switching."""
+        # 1. Local file path with quotes
+        raw_local = r'"C:\Users\Test\Videos\presentation.mp4"'
+        self.gui._set_input_value(raw_local)
+        self.assertEqual(self.gui.input_entry.get(), r"C:\Users\Test\Videos\presentation.mp4")
+        self.assertEqual(self.gui.source_segmented.get(), SourceType.LOCAL_FILE.value)
+        self.assertEqual(self.gui.output_entry.get(), r"C:\Users\Test\Videos\presentation_slides.pdf")
+
+        # 2. YouTube URL
+        raw_yt = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        self.gui._set_input_value(raw_yt)
+        self.assertEqual(self.gui.input_entry.get(), raw_yt)
+        self.assertEqual(self.gui.source_segmented.get(), SourceType.YOUTUBE.value)
+
+    def test_sliders_and_pill_badge_sync(self):
+        """Verify sliders correctly update float values and dynamic pill readouts."""
+        # Sample Interval (0.5 to 5.0)
+        self.assertEqual(self.gui.interval_val_lbl.cget("text"), "1.0s")
+        self.gui.sample_interval_slider.set(3.5)
+        self.assertAlmostEqual(self.gui.sample_interval_slider.get(), 3.5, places=1)
+        self.assertEqual(self.gui.interval_val_lbl.cget("text"), "3.5s")
+
+        # Similarity Threshold (80% to 99%)
+        self.assertEqual(self.gui.threshold_val_lbl.cget("text"), "92%")
+        self.gui.similarity_slider.set(0.95)
+        self.assertAlmostEqual(self.gui.similarity_slider.get(), 0.95, places=2)
+        self.assertEqual(self.gui.threshold_val_lbl.cget("text"), "95%")
+
+        # Debounce (1.0 to 10.0)
+        self.assertEqual(self.gui.debounce_val_lbl.cget("text"), "2.0s")
+        self.gui.debounce_slider.set(4.0)
+        self.assertAlmostEqual(self.gui.debounce_slider.get(), 4.0, places=1)
+        self.assertEqual(self.gui.debounce_val_lbl.cget("text"), "4.0s")
+
+        # Min Slide Duration (1.0 to 15.0)
+        self.assertEqual(self.gui.min_dur_val_lbl.cget("text"), "2.0s")
+        self.gui.min_duration_slider.set(5.5)
+        self.assertAlmostEqual(self.gui.min_duration_slider.get(), 5.5, places=1)
+        self.assertEqual(self.gui.min_dur_val_lbl.cget("text"), "5.5s")
+
+    def test_roi_and_preprocessing_toggles(self):
+        """Verify presenter mask toggle and dependent controls."""
+        self.assertFalse(self.gui.mask_presenter_switch.isChecked())
+        self.assertFalse(self.gui.pip_mode_dropdown.isEnabled())
+        self.assertFalse(self.gui.custom_box_entry.isEnabled())
+
+        # Toggle Presenter ON
+        self.gui.mask_presenter_switch.setChecked(True)
+        self.gui.update_idletasks()
+        self.assertTrue(self.gui.pip_mode_dropdown.isEnabled())
+        # Default mode is AUTO, so custom box should remain disabled
+        self.assertFalse(self.gui.custom_box_entry.isEnabled())
+
+        # Switch to CUSTOM mode
+        self.gui.pip_mode_dropdown.set(PresenterMaskMode.CUSTOM.value)
+        self.gui.update_idletasks()
+        self.assertTrue(self.gui.custom_box_entry.isEnabled())
+
+        # Toggle Presenter OFF -> disables both
+        self.gui.mask_presenter_switch.setChecked(False)
+        self.gui.update_idletasks()
+        self.assertFalse(self.gui.pip_mode_dropdown.isEnabled())
+        self.assertFalse(self.gui.custom_box_entry.isEnabled())
+
+    def test_worker_message_processing(self):
+        """Verify queue draining updates status, progress, metrics, and thumbnails."""
+        # Status message
+        self.gui.msg_queue.put(WorkerMessage(WorkerMessageType.STATUS, "Downloading video..."))
+        self.gui._process_queue()
+        self.assertEqual(self.gui.status_label.text(), "Downloading video...")
+
+        # Progress message
+        self.gui.msg_queue.put(WorkerMessage(WorkerMessageType.PROGRESS, 0.65))
+        self.gui._process_queue()
+        self.assertAlmostEqual(self.gui.progress_bar.get(), 0.65, places=2)
+
+        # Metrics message
+        metrics_data = {
+            "time_str": "01:23 / 05:00",
+            "speed_str": "45 FPS (2.3x)",
+            "slides_count": 8,
+            "eta_str": "~1m 15s (02:30 PM)",
+        }
+        self.gui.msg_queue.put(WorkerMessage(WorkerMessageType.METRICS, metrics_data))
+        self.gui._process_queue()
+        self.assertEqual(self.gui.val_time.text(), "01:23 / 05:00")
+        self.assertEqual(self.gui.val_speed.text(), "45 FPS (2.3x)")
+        self.assertEqual(self.gui.val_slides.text(), "8 slides")
+        self.assertEqual(self.gui.val_eta.text(), "~1m 15s (02:30 PM)")
+
+        # Thumbnail message
+        fake_rgb = np.ones((120, 160, 3), dtype=np.uint8) * 180
+        self.gui.msg_queue.put(WorkerMessage(WorkerMessageType.THUMBNAIL, {"image_rgb": fake_rgb}))
+        self.gui._process_queue()
+        self.assertIsNotNone(self.gui.preview_label.pixmap())
+
+    def test_completion_dialog_modal(self):
+        """Verify completion dialog opens, displays metrics, and closes cleanly."""
+        dialog = CompletionDialog(self.gui, "C:/test_path/presentation.pdf", slides_count=12, elapsed=75.4)
+        self.gui.update_idletasks()
+        self.assertIsNotNone(dialog)
+        self.assertEqual(dialog.windowTitle(), "Extraction Complete")
+        dialog.destroy()
+        self.gui.update_idletasks()
+
+    def test_deduplicate_dialog_lifecycle(self):
+        """Verify DeduplicatePDFDialog initializes, updates threshold, and destroys cleanly."""
+        dialog = DeduplicatePDFDialog(self.gui, default_pdf_path="C:/test/file.pdf")
+        self.gui.update_idletasks()
+
+        expected_in = os.path.normpath("C:/test/file.pdf")
+        expected_out = os.path.normpath("C:/test/file_dedup.pdf")
+        self.assertEqual(dialog.input_entry.get(), expected_in)
+        self.assertEqual(dialog.output_entry.get(), expected_out)
+        self.assertEqual(dialog.threshold_label.cget("text"), "94%")
+
+        # Test threshold slider change
+        dialog.similarity_slider.set(0.88)
+        self.assertEqual(dialog.threshold_label.cget("text"), "88%")
+
+        # Test queue progress update
+        dialog.msg_queue.put(("PROGRESS", (0.5, 5, 10, "Analyzing page 5...")))
+        dialog._process_queue()
+        self.assertAlmostEqual(dialog.progress_bar.get(), 0.5, places=2)
+        self.assertEqual(dialog.lbl_total.text(), "10")
+
+        # Test completion result
+        fake_result = DeduplicationResult(
+            input_path="C:/test/file.pdf",
+            output_path="C:/test/file_dedup.pdf",
+            total_pages=10,
+            unique_pages_count=8,
+            duplicates_removed_count=1,
+            narrator_pages_removed_count=1,
+            duplicate_details=[(5, 2, 0.96)],
+            narrator_details=[(3, "Speaker Face Detected")],
+        )
+        dialog.msg_queue.put(("COMPLETE", fake_result))
+        dialog._process_queue()
+
+        self.assertEqual(dialog.lbl_kept.text(), "8")
+        self.assertEqual(dialog.lbl_pruned.text(), "1")
+        self.assertEqual(dialog.lbl_narrator.text(), "1")
+        self.assertTrue(dialog.open_pdf_btn.isEnabled())
+        self.assertTrue(dialog.open_folder_btn.isEnabled())
+
+        dialog.destroy()
+        self.gui.update_idletasks()
+
+
+if __name__ == "__main__":
+    unittest.main()

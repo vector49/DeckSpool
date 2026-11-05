@@ -2,13 +2,13 @@
 
 # YT2PDF — Presentation Slide Extractor & Lossless PDF Builder
 
-A high-performance desktop application built with Python and CustomTkinter that automatically detects and extracts unique presentation slides from YouTube videos or local video files and compiles them into a clean, lossless PDF.
+A high-performance desktop application built with Python and PySide6 (Qt6) that automatically detects and extracts unique presentation slides from YouTube videos or local video files and compiles them into a clean, lossless PDF.
 
 ---
 
 ## Key Features
 
-- **Modern Dark-Mode Native GUI**: Built with CustomTkinter, featuring responsive layouts, customizable cards, and dynamic KPI badges.
+- **Modern Neo-Brutalist Native GUI**: Built with PySide6 (Qt6), featuring hardware-accelerated rendering, smooth scrolling, responsive layouts, customizable cards, and dynamic KPI badges.
 - **Two-Tier Frame Sampling**:
   - Ultra-fast 360p grayscale analysis tier using combined 64-bit difference hashing (`dHash`) and vectorized OpenCV Structural Similarity Index (`SSIM`).
   - High-resolution source-native capture tier (up to 1080p) stored in memory buffers only when candidate transitions occur.
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 ```
 
 ### Dependencies
-- `customtkinter`: Modern, dark-mode GUI widgets.
+- `pyside6`: Modern, hardware-accelerated Qt6 desktop GUI framework.
 - `yt-dlp`: Fast stream resolution and video-only ingestion without re-encoding.
 - `opencv-python-headless`: Fast frame seeking, image transformation, and vectorized SSIM.
 - `imagehash`: 64-bit perceptual difference hashing (`dHash`).
