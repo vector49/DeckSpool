@@ -383,6 +383,10 @@ class NeoSlider(QSlider):
         self.set(initial_val)
         self.valueChanged.connect(self._on_slider_moved)
 
+    def wheelEvent(self, event):
+        """Ignore scroll wheel on slider to keep it click-n-slide and avoid hijacking window scroll."""
+        event.ignore()
+
     def _on_slider_moved(self, pos: int):
         val = self.from_ + (pos / float(self.steps)) * (self.to_ - self.from_)
         self._current_val = round(val, 4)
@@ -1084,8 +1088,9 @@ class YT2PDFApp(QMainWindow):
         r_layout.addWidget(top_line)
 
         sub_lbl = NeoLabel(subtitle, row_widget)
-        sub_lbl.setFont(QFont("Segoe UI", 8))
-        sub_lbl.setStyleSheet(f"color: {COLOR_TEXT_DIM}; border: none;")
+        sub_lbl.setFont(QFont("Segoe UI", 10))
+        sub_lbl.setStyleSheet("color: #000000; border: none;")
+        sub_lbl.setWordWrap(True)
         r_layout.addWidget(sub_lbl)
 
         slider = NeoSlider(from_=from_, to_=to_, steps=steps, initial_val=initial_val, parent=row_widget)
@@ -2056,8 +2061,9 @@ class DeduplicatePDFDialog(QDialog):
         cc_layout.addWidget(thresh_top)
 
         sub_desc = NeoLabel("Sensitivity for declaring pages identical (higher requires stricter visual match)", card_controls)
-        sub_desc.setFont(QFont("Segoe UI", 8))
-        sub_desc.setStyleSheet(f"color: {COLOR_TEXT_DIM}; border: none; padding-left: 16px;")
+        sub_desc.setFont(QFont("Segoe UI", 10))
+        sub_desc.setStyleSheet("color: #000000; border: none; padding-left: 16px;")
+        sub_desc.setWordWrap(True)
         cc_layout.addWidget(sub_desc)
 
         slider_box = QWidget(card_controls)

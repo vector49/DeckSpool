@@ -108,6 +108,16 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertAlmostEqual(self.gui.min_duration_slider.get(), 5.5, places=1)
         self.assertEqual(self.gui.min_dur_val_lbl.cget("text"), "5.5s")
 
+    def test_slider_wheel_ignored(self):
+        """Verify wheel events on sliders are ignored so window scroll is not hijacked."""
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtCore import QPointF, QPoint
+        initial_val = self.gui.sample_interval_slider.get()
+        event = QWheelEvent(QPointF(10, 10), QPointF(10, 10), QPoint(0, 0), QPoint(0, 120), Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False)
+        self.gui.sample_interval_slider.wheelEvent(event)
+        self.assertFalse(event.isAccepted())
+        self.assertEqual(self.gui.sample_interval_slider.get(), initial_val)
+
     def test_roi_and_preprocessing_toggles(self):
         """Verify presenter mask toggle and dependent controls."""
         self.assertFalse(self.gui.mask_presenter_switch.isChecked())
