@@ -871,9 +871,9 @@ class YT2PDFApp(QMainWindow):
 
         h_layout.addStretch()
 
-        # Review & Deduplicate PDF button (Lilac)
+        # Deduplicate PDF button (Lilac)
         self.header_dedup_btn = NeoButton(
-            "Review & Deduplicate PDF...",
+            "Deduplicate PDF",
             bg_color=COLOR_NEO_LILAC,
             hover_color=COLOR_NEO_LILAC_HOVER,
             height=34,

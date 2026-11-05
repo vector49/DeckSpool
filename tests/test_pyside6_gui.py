@@ -40,7 +40,7 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertIsNotNone(self.gui.header_dedup_btn)
         self.assertIsNotNone(self.gui.header_view_pdf_btn)
         self.assertEqual(self.gui.header_view_pdf_btn.text(), "View PDF")
-        self.assertEqual(self.gui.header_dedup_btn.text(), "Review & Deduplicate PDF...")
+        self.assertEqual(self.gui.header_dedup_btn.text(), "Deduplicate PDF")
 
     def test_scroll_area_configuration(self):
         """Verify left column QScrollArea settings for smooth scrolling."""
