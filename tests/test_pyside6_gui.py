@@ -165,28 +165,49 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertEqual(self.gui.sample_interval_slider.get(), initial_val)
 
     def test_roi_and_preprocessing_toggles(self):
-        """Verify presenter mask toggle and dependent controls."""
+        """Verify presenter mask toggle, dependent controls, greyed-out frame styling, and alignment."""
+        # 1. Check switch text does not truncate
+        sw = self.gui.mask_presenter_switch
+        self.assertEqual(sw.text(), "Mask Presenter / PIP Webcam")
+        self.assertGreaterEqual(sw.sizeHint().width(), 240)
+
+        # 2. Check alignment: 16px margins on both sides relative to card_03
+        self.gui.show()
+        self.gui.update_idletasks()
+        card3 = self.gui.findChild(object, "card_03")
+        pos_in_card = self.gui.pip_mode_frame.mapTo(card3, self.gui.pip_mode_frame.rect().topLeft())
+        card3_inner_left = 3
+        card3_inner_right = card3.width() - 3
+        left_gap = pos_in_card.x() - card3_inner_left
+        right_gap = card3_inner_right - (pos_in_card.x() + self.gui.pip_mode_frame.width())
+        self.assertEqual(left_gap, 16)
+        self.assertEqual(right_gap, 16)
+
+        # 3. Initially OFF: Frame is greyed out (#f3f4f6) and controls are disabled
         self.assertFalse(self.gui.mask_presenter_switch.isChecked())
         self.assertFalse(self.gui.pip_mode_dropdown.isEnabled())
         self.assertFalse(self.gui.custom_box_entry.isEnabled())
+        self.assertIn("#f3f4f6", self.gui.pip_mode_frame.styleSheet())
 
-        # Toggle Presenter ON
+        # 4. Toggle Presenter ON: Frame turns Buttercream (#fefce8)
         self.gui.mask_presenter_switch.setChecked(True)
         self.gui.update_idletasks()
         self.assertTrue(self.gui.pip_mode_dropdown.isEnabled())
+        self.assertIn("#fefce8", self.gui.pip_mode_frame.styleSheet())
         # Default mode is AUTO, so custom box should remain disabled
         self.assertFalse(self.gui.custom_box_entry.isEnabled())
 
-        # Switch to CUSTOM mode
+        # 5. Switch to CUSTOM mode
         self.gui.pip_mode_dropdown.set(PresenterMaskMode.CUSTOM.value)
         self.gui.update_idletasks()
         self.assertTrue(self.gui.custom_box_entry.isEnabled())
 
-        # Toggle Presenter OFF -> disables both
+        # 6. Toggle Presenter OFF -> disables both and greys out frame again
         self.gui.mask_presenter_switch.setChecked(False)
         self.gui.update_idletasks()
         self.assertFalse(self.gui.pip_mode_dropdown.isEnabled())
         self.assertFalse(self.gui.custom_box_entry.isEnabled())
+        self.assertIn("#f3f4f6", self.gui.pip_mode_frame.styleSheet())
 
     def test_worker_message_processing(self):
         """Verify queue draining updates status, progress, metrics, and thumbnails."""

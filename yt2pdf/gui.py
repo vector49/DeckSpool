@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, QTimer, QRect, QSize, Signal, QObject
+from PySide6.QtCore import Qt, QTimer, QRect, QSize, Signal, QObject, QPointF
 from PySide6.QtGui import (
     QFont,
     QColor,
@@ -281,6 +281,16 @@ class NeoSwitch(QCheckBox):
         self.setCursor(Qt.PointingHandCursor)
         self.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.setFixedHeight(30)
+
+    def sizeHint(self) -> QSize:
+        fm = self.fontMetrics()
+        text_w = fm.horizontalAdvance(self.text()) if self.text() else 0
+        w = 40 + 14 + text_w + 14
+        h = max(30, fm.height() + 8)
+        return QSize(w, h)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -567,7 +577,7 @@ class NeoStandaloneButtonGroup(QWidget):
 
 
 class NeoComboBox(QComboBox):
-    """Neo-Brutalist styled dropdown with thick borders and yellow trigger button."""
+    """Neo-Brutalist styled dropdown with thick borders, yellow trigger button, and crisp downward arrow."""
 
     def __init__(self, parent=None, values: Optional[List[str]] = None, command: Optional[Callable[[str], None]] = None):
         super().__init__(parent)
@@ -586,6 +596,11 @@ class NeoComboBox(QComboBox):
                 padding: 4px 10px;
                 min-height: 28px;
             }}
+            QComboBox:disabled {{
+                background-color: #f9fafb;
+                color: #9ca3af;
+                border: 2px solid #d1d5db;
+            }}
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
@@ -595,12 +610,14 @@ class NeoComboBox(QComboBox):
                 border-top-right-radius: 6px;
                 border-bottom-right-radius: 6px;
             }}
+            QComboBox::drop-down:disabled {{
+                background-color: #e5e7eb;
+                border-left: 2px solid #d1d5db;
+            }}
             QComboBox::down-arrow {{
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 6px solid #000000;
-                width: 0;
-                height: 0;
+                image: none;
+                width: 0px;
+                height: 0px;
             }}
             QComboBox QAbstractItemView {{
                 background-color: #ffffff;
@@ -615,6 +632,28 @@ class NeoComboBox(QComboBox):
         """)
         if command:
             self.currentTextChanged.connect(command)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        btn_w = 28
+        btn_x = self.width() - btn_w
+        center_x = btn_x + btn_w / 2.0
+        center_y = self.height() / 2.0
+
+        painter.setPen(Qt.NoPen)
+        color = QColor("#000000") if self.isEnabled() else QColor("#9ca3af")
+        painter.setBrush(QBrush(color))
+        half_w = 5.0
+        half_h = 3.5
+        points = [
+            QPointF(center_x - half_w, center_y - half_h),
+            QPointF(center_x + half_w, center_y - half_h),
+            QPointF(center_x, center_y + half_h + 1.0)
+        ]
+        painter.drawPolygon(points)
+        painter.end()
 
     def get(self) -> str:
         return self.currentText()
@@ -1163,7 +1202,8 @@ class YT2PDFApp(QMainWindow):
         ms_layout.setContentsMargins(0, 0, 0, 0)
         ms_layout.setSpacing(8)
 
-        ms_layout.addWidget(NeoLabel("PIP Position:", mode_select_row))
+        self.pip_pos_label = NeoLabel("PIP Position:", mode_select_row)
+        ms_layout.addWidget(self.pip_pos_label)
         self.pip_mode_dropdown = NeoComboBox(
             mode_select_row,
             values=[m.value for m in PresenterMaskMode],
@@ -1179,13 +1219,19 @@ class YT2PDFApp(QMainWindow):
         cb_layout.setContentsMargins(0, 0, 0, 0)
         cb_layout.setSpacing(8)
 
-        cb_layout.addWidget(NeoLabel("Custom Box (x,y,w,h):", self.custom_box_row))
+        self.custom_box_label = NeoLabel("Custom Box (x,y,w,h):", self.custom_box_row)
+        cb_layout.addWidget(self.custom_box_label)
         self.custom_box_entry = NeoEntry("0.75,0.70,0.25,0.30", height=32, parent=self.custom_box_row)
         self.custom_box_entry.insert(0, "0.75,0.70,0.25,0.30")
         cb_layout.addWidget(self.custom_box_entry, stretch=1)
         pf_layout.addWidget(self.custom_box_row)
 
-        card_layout.addWidget(self.pip_mode_frame)
+        # Centered carrier row with even 16px margins on both sides
+        pip_frame_row = QWidget(card)
+        pfr_layout = QHBoxLayout(pip_frame_row)
+        pfr_layout.setContentsMargins(16, 2, 16, 6)
+        pfr_layout.addWidget(self.pip_mode_frame)
+        card_layout.addWidget(pip_frame_row)
 
         # Initialize PIP controls state (disabled by default)
         self._on_toggle_presenter_mask()
@@ -1519,15 +1565,50 @@ class YT2PDFApp(QMainWindow):
                 self._open_file(selected_clean)
 
     def _on_toggle_presenter_mask(self):
-        enabled = self.mask_presenter_switch.isChecked()
-        self.pip_mode_dropdown.setEnabled(enabled)
-        choice = self.pip_mode_dropdown.get()
-        self.custom_box_entry.setEnabled(enabled and (choice == PresenterMaskMode.CUSTOM.value))
+        self._update_pip_mode_ui_state()
 
     def _on_pip_mode_changed(self, choice: str):
-        if choice == PresenterMaskMode.CUSTOM.value:
-            self.custom_box_entry.setEnabled(self.mask_presenter_switch.isChecked())
+        self._update_pip_mode_ui_state()
+
+    def _update_pip_mode_ui_state(self):
+        enabled = self.mask_presenter_switch.isChecked()
+        choice = self.pip_mode_dropdown.get()
+
+        if enabled:
+            # Active Buttercream Card
+            self.pip_mode_frame.setStyleSheet(f"""
+                QFrame#pip_frame {{
+                    background-color: {COLOR_CARD_BG_ALT};
+                    border: 2px solid #000000;
+                    border-radius: 10px;
+                }}
+            """)
+            if hasattr(self, "pip_pos_label"):
+                self.pip_pos_label.setStyleSheet("color: #000000; border: none; font-weight: bold;")
+            self.pip_mode_dropdown.setEnabled(True)
+
+            is_custom = (choice == PresenterMaskMode.CUSTOM.value)
+            self.custom_box_entry.setEnabled(is_custom)
+            if hasattr(self, "custom_box_label"):
+                self.custom_box_label.setStyleSheet(
+                    "color: #000000; border: none; font-weight: bold;"
+                    if is_custom else
+                    "color: #9ca3af; border: none; font-weight: bold;"
+                )
         else:
+            # Greyed-out Inactive Card
+            self.pip_mode_frame.setStyleSheet("""
+                QFrame#pip_frame {
+                    background-color: #f3f4f6;
+                    border: 2px solid #d1d5db;
+                    border-radius: 10px;
+                }
+            """)
+            if hasattr(self, "pip_pos_label"):
+                self.pip_pos_label.setStyleSheet("color: #9ca3af; border: none; font-weight: bold;")
+            self.pip_mode_dropdown.setEnabled(False)
+            if hasattr(self, "custom_box_label"):
+                self.custom_box_label.setStyleSheet("color: #9ca3af; border: none; font-weight: bold;")
             self.custom_box_entry.setEnabled(False)
 
     # ---------------- Start & Cancellation Pipeline ----------------
