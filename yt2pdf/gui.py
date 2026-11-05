@@ -232,8 +232,9 @@ class NeoEntry(QLineEdit):
                 border: 2.5px solid #000000;
             }
             QLineEdit:disabled {
-                background-color: #f3f4f6;
-                color: #6b7280;
+                background-color: #f9fafb;
+                color: #9ca3af;
+                border: 2px solid #d1d5db;
             }
         """)
 
@@ -1070,7 +1071,7 @@ class YT2PDFApp(QMainWindow):
         self.sample_interval_slider, self.interval_val_lbl = self._add_slider_row(
             parent=card,
             title="Sample Interval:",
-            subtitle="Frequency of frame sampling (lower is more thorough, higher is faster)",
+            subtitle="<b>Frequency of frame sampling</b> (lower is more thorough, higher is faster)",
             initial_val=1.0,
             initial_val_str="1.0s",
             from_=0.5,
@@ -1084,7 +1085,7 @@ class YT2PDFApp(QMainWindow):
         self.similarity_slider, self.threshold_val_lbl = self._add_slider_row(
             parent=card,
             title="Similarity Threshold:",
-            subtitle="SSIM sensitivity required to trigger a slide transition",
+            subtitle="<b>SSIM sensitivity required to trigger a slide transition</b> (lower captures minor edits, higher needs distinct slides)",
             initial_val=0.92,
             initial_val_str="92%",
             from_=0.80,
@@ -1098,7 +1099,7 @@ class YT2PDFApp(QMainWindow):
         self.debounce_slider, self.debounce_val_lbl = self._add_slider_row(
             parent=card,
             title="Debounce / Settle Time:",
-            subtitle="Wait duration for bullet points and animations to settle into completed state",
+            subtitle="<b>Wait duration for bullet points and animations to settle into completed state</b> (lower saves quickly, higher awaits full animation)",
             initial_val=2.0,
             initial_val_str="2.0s",
             from_=1.0,
@@ -1112,7 +1113,7 @@ class YT2PDFApp(QMainWindow):
         self.min_duration_slider, self.min_dur_val_lbl = self._add_slider_row(
             parent=card,
             title="Min Slide Duration:",
-            subtitle="Filters out momentary camera cuts back to speaker",
+            subtitle="<b>Filters out momentary camera cuts back to speaker</b> (lower keeps brief slide flashes, higher ignores quick speaker cuts)",
             initial_val=2.0,
             initial_val_str="2.0s",
             from_=1.0,
@@ -2175,7 +2176,7 @@ class DeduplicatePDFDialog(QDialog):
         tt_layout.addWidget(self.threshold_label)
         cc_layout.addWidget(thresh_top)
 
-        sub_desc = NeoLabel("Sensitivity for declaring pages identical (higher requires stricter visual match)", card_controls)
+        sub_desc = NeoLabel("<b>Sensitivity for declaring pages identical</b> (lower merges near-duplicates, higher requires stricter visual match)", card_controls)
         sub_desc.setFont(QFont("Segoe UI", 10))
         sub_desc.setStyleSheet("color: #000000; border: none; padding-left: 16px;")
         sub_desc.setWordWrap(True)
