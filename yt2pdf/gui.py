@@ -1813,6 +1813,7 @@ class YT2PDFApp(QMainWindow):
             if curr_out and os.path.exists(curr_out):
                 default_pdf = curr_out
         dialog = DeduplicatePDFDialog(self, default_pdf_path=default_pdf)
+        self._dedup_dialog = dialog
         dialog.show()
 
     def _handle_error(self, error_message: str):
@@ -1985,6 +1986,7 @@ class DeduplicatePDFDialog(QDialog):
         self.scroll = QScrollArea(self)
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
@@ -2010,6 +2012,9 @@ class DeduplicatePDFDialog(QDialog):
             }
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                 background: none;
+            }
+            QScrollBar:horizontal {
+                height: 0px;
             }
         """)
         self.scroll.verticalScrollBar().setSingleStep(16)

@@ -319,6 +319,38 @@ class TestPySide6GUI(unittest.TestCase):
                 self.assertIsNotNone(card)
                 self.assertEqual(card.width(), vp_w - 10)
 
+    def test_deduplicate_dialog_scrollbar_policy_and_alignment(self):
+        """Verify DeduplicatePDFDialog scroll policy, status box centering, and button label."""
+        dialog = DeduplicatePDFDialog(self.gui)
+        self.gui.update_idletasks()
+
+        # Check scrollbar policy
+        self.assertEqual(dialog.scroll.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+        self.assertFalse(dialog.scroll.horizontalScrollBar().isVisible())
+
+        # Check run button text
+        self.assertEqual(dialog.run_btn.text(), "Review and Truncate Duplicates")
+
+        # Check status box alignment and centering
+        self.assertEqual(dialog.status_label.alignment(), Qt.AlignCenter)
+        card3 = dialog.card_results
+        pos_box = dialog.dialog_status_box.mapTo(card3, dialog.dialog_status_box.rect().topLeft())
+        pos_pb = dialog.progress_bar.mapTo(card3, dialog.progress_bar.rect().topLeft())
+        self.assertEqual(pos_box.x(), pos_pb.x())
+        self.assertEqual(dialog.dialog_status_box.width(), dialog.progress_bar.width())
+
+        dialog.destroy()
+        self.gui.update_idletasks()
+
+    def test_view_pdf_button_handler(self):
+        """Verify View PDF button invokes file opener when file exists or safely prompts when none."""
+        # Case 1: When no output file exists and no last_generated_pdf, it safely exits without crashing
+        self.gui.output_entry.setText("")
+        self.gui.last_generated_pdf = ""
+        # Mock QFileDialog.getOpenFileName to cancel
+        with unittest.mock.patch("PySide6.QtWidgets.QFileDialog.getOpenFileName", return_value=("", "")):
+            self.gui._on_view_pdf()
+
 
 if __name__ == "__main__":
     unittest.main()
