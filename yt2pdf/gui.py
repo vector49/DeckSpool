@@ -882,7 +882,7 @@ class YT2PDFApp(QMainWindow):
         self.header_dedup_btn.clicked.connect(lambda: self._open_deduplicate_dialog())
         h_layout.addWidget(self.header_dedup_btn)
 
-        # View PDF button (Cyan)
+        # View PDF button (Cyan) - starts disabled until extraction completes
         self.header_view_pdf_btn = NeoButton(
             "View PDF",
             bg_color=COLOR_NEO_BLUE,
@@ -891,6 +891,7 @@ class YT2PDFApp(QMainWindow):
             parent=header_frame,
         )
         self.header_view_pdf_btn.setFixedWidth(96)
+        self.header_view_pdf_btn.setEnabled(False)
         self.header_view_pdf_btn.clicked.connect(self._on_view_pdf)
         h_layout.addWidget(self.header_view_pdf_btn)
 
@@ -1685,6 +1686,7 @@ class YT2PDFApp(QMainWindow):
         )
 
         # Update UI state to processing
+        self.last_generated_pdf = ""
         self._set_processing_ui_state(True)
         self.cancel_event.clear()
         self.status_label.setText("Starting extraction pipeline...")
@@ -1722,9 +1724,17 @@ class YT2PDFApp(QMainWindow):
         self.input_browse_btn.setEnabled(enabled)
         self.output_entry.setEnabled(enabled)
         self.output_browse_btn.setEnabled(enabled)
-        self.header_view_pdf_btn.setEnabled(enabled)
         self.header_dedup_btn.setEnabled(enabled)
         self.cancel_btn.setEnabled(processing)
+
+        # View PDF is only enabled when not processing AND an extracted output PDF is ready
+        has_ready_pdf = bool(
+            not processing
+            and hasattr(self, "last_generated_pdf")
+            and self.last_generated_pdf
+            and os.path.isfile(clean_file_path(self.last_generated_pdf))
+        )
+        self.header_view_pdf_btn.setEnabled(has_ready_pdf)
 
     # ---------------- Queue Drainage Loop ----------------
 
@@ -1790,11 +1800,15 @@ class YT2PDFApp(QMainWindow):
             logger.debug(f"Thumbnail render failed: {e}")
 
     def _handle_completion(self, payload: dict):
-        self._set_processing_ui_state(False)
         out_path = payload.get("output_path", "")
         slides_count = payload.get("slides_count", 0)
         elapsed = payload.get("elapsed_seconds", 0)
         self.last_generated_pdf = out_path
+        self._set_processing_ui_state(False)
+
+        # Ensure View PDF button is enabled if the output PDF is ready
+        if out_path and os.path.isfile(clean_file_path(out_path)):
+            self.header_view_pdf_btn.setEnabled(True)
 
         self.val_eta.setText("Finished")
         self.status_label.setText(f"Complete — {slides_count} unique slides compiled into PDF!")

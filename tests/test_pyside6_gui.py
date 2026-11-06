@@ -351,6 +351,38 @@ class TestPySide6GUI(unittest.TestCase):
         with unittest.mock.patch("PySide6.QtWidgets.QFileDialog.getOpenFileName", return_value=("", "")):
             self.gui._on_view_pdf()
 
+    def test_view_pdf_button_disabled_state(self):
+        """Verify View PDF button starts disabled and is only enabled when output PDF is ready."""
+        # 1. Initial launch: button must be disabled because no output is ready
+        self.assertFalse(self.gui.header_view_pdf_btn.isEnabled())
+
+        # 2. During processing: button must remain disabled
+        self.gui._set_processing_ui_state(True)
+        self.assertFalse(self.gui.header_view_pdf_btn.isEnabled())
+
+        # 3. On completion with valid output file: button becomes enabled
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tf:
+            temp_pdf = tf.name
+
+        try:
+            with unittest.mock.patch.object(self.gui, "_show_completion_dialog"):
+                self.gui._handle_completion({
+                    "output_path": temp_pdf,
+                    "slides_count": 5,
+                    "elapsed_seconds": 12.0,
+                })
+            self.assertTrue(self.gui.header_view_pdf_btn.isEnabled())
+
+            # 4. Starting a new extraction clears previous output and disables View PDF again
+            self.gui.input_entry.setText("dummy_video.mp4")
+            with unittest.mock.patch.object(self.gui, "worker", create=True):
+                with unittest.mock.patch("yt2pdf.gui.ExtractionWorker"):
+                    self.gui._on_start_clicked()
+            self.assertFalse(self.gui.header_view_pdf_btn.isEnabled())
+        finally:
+            if os.path.exists(temp_pdf):
+                os.remove(temp_pdf)
+
 
 if __name__ == "__main__":
     unittest.main()
