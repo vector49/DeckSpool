@@ -6,6 +6,7 @@ import queue
 import logging
 import threading
 import subprocess
+from dataclasses import dataclass
 from typing import Optional, Callable, Tuple, List, Any
 import numpy as np
 from PIL import Image
@@ -60,42 +61,225 @@ logger = logging.getLogger(__name__)
 # ==============================================================================
 # Exact Neo-Brutalist Color Palette & Theme Tokens
 # ==============================================================================
-COLOR_CANVAS_BG = "#ede9f6"       # Soft pastel lavender/gray background
-COLOR_CARD_BG = "#ffffff"         # Crisp white card surfaces
-COLOR_CARD_BG_ALT = "#fefce8"     # Soft buttercream for secondary cards
-COLOR_INNER_BG = "#ffffff"        # Inner frame white
-COLOR_BORDER = "#000000"          # Solid pitch-black outlines
-COLOR_BORDER_WIDTH = 2.5          # Standard chunky border width
 
-# Typography Colors
-COLOR_TEXT = "#000000"            # Pitch black high-contrast text
-COLOR_TEXT_DIM = "#4b5563"        # Dark slate captions
-COLOR_TEXT_BRIGHT = "#000000"     # High contrast black text for badges
+@dataclass
+class NeoTheme:
+    """Design tokens defining a cohesive Neo-Brutalist theme."""
+    name: str  # "light" or "dark"
+    canvas_bg: str
+    card_bg: str
+    card_bg_alt: str
+    card_bg_inactive: str
+    inner_bg: str
+    border: str
+    border_muted: str
+    border_width: float
+    text: str
+    text_dim: str
+    text_bright: str
+    status_bg: str
 
-# Vibrant Neo-Brutalist Accents
-COLOR_NEO_YELLOW = "#ffd166"      # Sunshine yellow
-COLOR_NEO_YELLOW_HOVER = "#ffc72c"
-COLOR_NEO_GREEN = "#4ade80"       # Vibrant mint/lime green
-COLOR_NEO_GREEN_HOVER = "#22c55e"
-COLOR_NEO_BLUE = "#7dd3fc"        # Sky cyan blue
-COLOR_NEO_BLUE_HOVER = "#38bdf8"
-COLOR_NEO_PINK = "#f472b6"        # Coral pink / salmon
-COLOR_NEO_PINK_HOVER = "#ec4899"
-COLOR_NEO_LILAC = "#c084fc"       # Retro purple/lilac
-COLOR_NEO_LILAC_HOVER = "#a855f7"
-COLOR_NEO_RED = "#f87171"         # Neo red / coral
-COLOR_NEO_RED_HOVER = "#ef4444"
-COLOR_NEO_ORANGE = "#fed7aa"      # Warm peach / orange
-COLOR_NEO_CREAM = "#fffbeb"       # Warm white / cream
+    # Vibrant Neo-Brutalist Accents
+    yellow: str
+    yellow_hover: str
+    green: str
+    green_hover: str
+    blue: str
+    blue_hover: str
+    pink: str
+    pink_hover: str
+    lilac: str
+    lilac_hover: str
+    red: str
+    red_hover: str
+    orange: str
+    cream: str
 
-# Backwards compatibility color aliases
+    track_lilac: str
+    progress_purple: str
+
+    # Component-Specific Styles
+    slider_groove: str
+    slider_progress: str
+    slider_handle: str
+    slider_handle_border: str
+    slider_handle_hover: str
+    switch_track_off: str
+    switch_thumb: str
+    scrollbar_bg: str
+    scrollbar_handle: str
+    scrollbar_hover: str
+    entry_bg: str
+    entry_fg: str
+    entry_border: str
+    entry_focus_border: str
+    entry_disabled_bg: str
+    entry_disabled_fg: str
+    entry_disabled_border: str
+    unselected_btn_bg: str
+    unselected_btn_fg: str
+    unselected_btn_hover: str
+    unselected_btn_pressed: str
+    btn_disabled_bg: str
+    btn_disabled_fg: str
+    btn_disabled_border: str
+
+
+# Signature Light Neo-Brutalist Theme
+LIGHT_THEME = NeoTheme(
+    name="light",
+    canvas_bg="#ede9f6",
+    card_bg="#ffffff",
+    card_bg_alt="#fefce8",
+    card_bg_inactive="#f3f4f6",
+    inner_bg="#ffffff",
+    border="#000000",
+    border_muted="#d1d5db",
+    border_width=2.5,
+    text="#000000",
+    text_dim="#4b5563",
+    text_bright="#000000",
+    status_bg="#fffbeb",
+    yellow="#ffd166",
+    yellow_hover="#ffc72c",
+    green="#4ade80",
+    green_hover="#22c55e",
+    blue="#7dd3fc",
+    blue_hover="#38bdf8",
+    pink="#f472b6",
+    pink_hover="#ec4899",
+    lilac="#c084fc",
+    lilac_hover="#a855f7",
+    red="#f87171",
+    red_hover="#ef4444",
+    orange="#fed7aa",
+    cream="#fffbeb",
+    track_lilac="#d8b4fe",
+    progress_purple="#a855f7",
+    slider_groove="#d8b4fe",
+    slider_progress="#a855f7",
+    slider_handle="#ffffff",
+    slider_handle_border="#000000",
+    slider_handle_hover="#f3e8ff",
+    switch_track_off="#e5e7eb",
+    switch_thumb="#000000",
+    scrollbar_bg="#ffffff",
+    scrollbar_handle="#000000",
+    scrollbar_hover="#374151",
+    entry_bg="#ffffff",
+    entry_fg="#000000",
+    entry_border="#000000",
+    entry_focus_border="#000000",
+    entry_disabled_bg="#f9fafb",
+    entry_disabled_fg="#9ca3af",
+    entry_disabled_border="#d1d5db",
+    unselected_btn_bg="#e5e7eb",
+    unselected_btn_fg="#4b5563",
+    unselected_btn_hover="#d1d5db",
+    unselected_btn_pressed="#9ca3af",
+    btn_disabled_bg="#e5e7eb",
+    btn_disabled_fg="#6b7280",
+    btn_disabled_border="#9ca3af",
+)
+
+# Signature Dark Neo-Brutalist Theme (Deep obsidian canvas, high-voltage accents, stark white borders)
+DARK_THEME = NeoTheme(
+    name="dark",
+    canvas_bg="#121216",
+    card_bg="#1a1a24",
+    card_bg_alt="#252332",
+    card_bg_inactive="#16161e",
+    inner_bg="#101014",
+    border="#ffffff",
+    border_muted="#3f3f46",
+    border_width=2.5,
+    text="#ffffff",
+    text_dim="#9ca3af",
+    text_bright="#ffffff",
+    status_bg="#252332",
+    yellow="#ffd166",
+    yellow_hover="#ffdb4d",
+    green="#4ade80",
+    green_hover="#22c55e",
+    blue="#38bdf8",
+    blue_hover="#0ea5e9",
+    pink="#f472b6",
+    pink_hover="#ec4899",
+    lilac="#c084fc",
+    lilac_hover="#a855f7",
+    red="#f87171",
+    red_hover="#ef4444",
+    orange="#fb923c",
+    cream="#252332",
+    track_lilac="#3f3f46",
+    progress_purple="#c084fc",
+    slider_groove="#27272a",
+    slider_progress="#c084fc",
+    slider_handle="#ffffff",
+    slider_handle_border="#000000",
+    slider_handle_hover="#f3e8ff",
+    switch_track_off="#27272a",
+    switch_thumb="#ffffff",
+    scrollbar_bg="#121216",
+    scrollbar_handle="#ffffff",
+    scrollbar_hover="#e4e4e7",
+    entry_bg="#101014",
+    entry_fg="#ffffff",
+    entry_border="#ffffff",
+    entry_focus_border="#ffd166",
+    entry_disabled_bg="#18181c",
+    entry_disabled_fg="#52525b",
+    entry_disabled_border="#3f3f46",
+    unselected_btn_bg="#262630",
+    unselected_btn_fg="#a1a1aa",
+    unselected_btn_hover="#323240",
+    unselected_btn_pressed="#3f3f46",
+    btn_disabled_bg="#1f1f26",
+    btn_disabled_fg="#52525b",
+    btn_disabled_border="#3f3f46",
+)
+
+_CURRENT_THEME = LIGHT_THEME
+
+def get_current_theme() -> NeoTheme:
+    """Returns the currently active Neo-Brutalist theme."""
+    return _CURRENT_THEME
+
+def set_current_theme(theme: NeoTheme):
+    """Sets the active Neo-Brutalist theme."""
+    global _CURRENT_THEME
+    _CURRENT_THEME = theme
+
+# Backward-compatibility color constants (referencing Light Theme)
+COLOR_CANVAS_BG = LIGHT_THEME.canvas_bg
+COLOR_CARD_BG = LIGHT_THEME.card_bg
+COLOR_CARD_BG_ALT = LIGHT_THEME.card_bg_alt
+COLOR_INNER_BG = LIGHT_THEME.inner_bg
+COLOR_BORDER = LIGHT_THEME.border
+COLOR_BORDER_WIDTH = LIGHT_THEME.border_width
+COLOR_TEXT = LIGHT_THEME.text
+COLOR_TEXT_DIM = LIGHT_THEME.text_dim
+COLOR_TEXT_BRIGHT = LIGHT_THEME.text_bright
+COLOR_NEO_YELLOW = LIGHT_THEME.yellow
+COLOR_NEO_YELLOW_HOVER = LIGHT_THEME.yellow_hover
+COLOR_NEO_GREEN = LIGHT_THEME.green
+COLOR_NEO_GREEN_HOVER = LIGHT_THEME.green_hover
+COLOR_NEO_BLUE = LIGHT_THEME.blue
+COLOR_NEO_BLUE_HOVER = LIGHT_THEME.blue_hover
+COLOR_NEO_PINK = LIGHT_THEME.pink
+COLOR_NEO_PINK_HOVER = LIGHT_THEME.pink_hover
+COLOR_NEO_LILAC = LIGHT_THEME.lilac
+COLOR_NEO_LILAC_HOVER = LIGHT_THEME.lilac_hover
+COLOR_NEO_RED = LIGHT_THEME.red
+COLOR_NEO_RED_HOVER = LIGHT_THEME.red_hover
+COLOR_NEO_ORANGE = LIGHT_THEME.orange
+COLOR_NEO_CREAM = LIGHT_THEME.cream
 COLOR_GREEN_ACCENT = COLOR_NEO_GREEN
 COLOR_GREEN_HOVER = COLOR_NEO_GREEN_HOVER
 COLOR_RED_ACCENT = COLOR_NEO_RED
 COLOR_RED_HOVER = COLOR_NEO_RED_HOVER
-
-COLOR_TRACK_LILAC = "#d8b4fe"
-COLOR_PROGRESS_PURPLE = "#a855f7"
+COLOR_TRACK_LILAC = LIGHT_THEME.track_lilac
+COLOR_PROGRESS_PURPLE = LIGHT_THEME.progress_purple
 
 
 def _show_info(parent, title: str, message: str):
@@ -141,7 +325,7 @@ class NeoLabel(QLabel):
 
 
 class NeoButton(QPushButton):
-    """Neo-Brutalist button with 2px solid black border, bold font, and hover states."""
+    """Neo-Brutalist button with 2px solid border, bold font, and hover states."""
 
     def __init__(
         self,
@@ -152,24 +336,38 @@ class NeoButton(QPushButton):
         corner_radius=0,
         font_size=12,
         parent=None,
+        theme: Optional[NeoTheme] = None,
+        text_color: str = "#000000",
     ):
         super().__init__(text, parent)
         self._bg_color = bg_color
         self._hover_color = hover_color
         self._corner_radius = corner_radius
         self._font_size = font_size
+        self._text_color = text_color
+        self._theme = theme or get_current_theme()
         self.setFixedHeight(height)
         self.setCursor(Qt.PointingHandCursor)
         self._apply_style()
 
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._apply_style()
+
     def _apply_style(self):
+        theme = getattr(self, "_theme", None) or get_current_theme()
+        border_col = theme.border
+        dis_bg = theme.btn_disabled_bg
+        dis_fg = theme.btn_disabled_fg
+        dis_border = theme.btn_disabled_border
+
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._bg_color};
-                color: #000000;
-                border: 2px solid #000000;
+                color: {self._text_color};
+                border: 2px solid {border_col};
                 border-radius: {self._corner_radius}px;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Segoe UI', 'Segoe UI Emoji', sans-serif;
                 font-size: {self._font_size}px;
                 font-weight: bold;
                 padding: 4px 12px;
@@ -183,9 +381,9 @@ class NeoButton(QPushButton):
                 padding-left: 14px;
             }}
             QPushButton:disabled {{
-                background-color: #e5e7eb;
-                color: #6b7280;
-                border-color: #9ca3af;
+                background-color: {dis_bg};
+                color: {dis_fg};
+                border: 2px solid {dis_border};
             }}
         """)
 
@@ -211,31 +409,40 @@ class NeoButton(QPushButton):
 class NeoEntry(QLineEdit):
     """Neo-Brutalist text entry with bold font, thick border, and Tkinter-compat helpers."""
 
-    def __init__(self, placeholder="", height=38, parent=None):
+    def __init__(self, placeholder="", height=38, parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
+        self._theme = theme or get_current_theme()
         self.setFixedHeight(height)
         self.setPlaceholderText(placeholder)
         self.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self._paste_callback = None
-        self.setStyleSheet("""
-            QLineEdit {
-                background-color: #ffffff;
-                color: #000000;
-                border: 2px solid #000000;
+        self._apply_style()
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._apply_style()
+
+    def _apply_style(self):
+        theme = self._theme
+        self.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {theme.entry_bg};
+                color: {theme.entry_fg};
+                border: 2px solid {theme.entry_border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
                 font-weight: bold;
                 padding: 6px 10px;
-            }
-            QLineEdit:focus {
-                border: 2.5px solid #000000;
-            }
-            QLineEdit:disabled {
-                background-color: #f9fafb;
-                color: #9ca3af;
-                border: 2px solid #d1d5db;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 2.5px solid {theme.entry_focus_border};
+            }}
+            QLineEdit:disabled {{
+                background-color: {theme.entry_disabled_bg};
+                color: {theme.entry_disabled_fg};
+                border: 2px solid {theme.entry_disabled_border};
+            }}
         """)
 
     def set_paste_callback(self, callback: Callable):
@@ -273,15 +480,20 @@ class NeoEntry(QLineEdit):
 
 class NeoSwitch(QCheckBox):
     """
-    Neo-Brutalist pill toggle switch with crisp 2px black outline,
-    punchy green fill when active, solid black thumb knob, and dynamic responsive label wrapping.
+    Neo-Brutalist pill toggle switch with crisp 2px outline,
+    punchy green fill when active, solid thumb knob, and dynamic responsive label wrapping.
     """
 
-    def __init__(self, text="", parent=None):
+    def __init__(self, text="", parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(text, parent)
+        self._theme = theme or get_current_theme()
         self.setCursor(Qt.PointingHandCursor)
         self.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self.update()
 
     def sizeHint(self) -> QSize:
         fm = self.fontMetrics()
@@ -308,6 +520,7 @@ class NeoSwitch(QCheckBox):
         return max(30, rect.height() + 10)
 
     def paintEvent(self, event):
+        theme = getattr(self, "_theme", None) or get_current_theme()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -318,12 +531,12 @@ class NeoSwitch(QCheckBox):
         track_y = (self.height() - track_h) // 2
 
         checked = self.isChecked()
-        bg_col = QColor(COLOR_NEO_GREEN) if checked else QColor("#e5e7eb")
+        bg_col = QColor(theme.green) if checked else QColor(theme.switch_track_off)
         if not self.isEnabled():
-            bg_col = QColor("#f3f4f6")
+            bg_col = QColor(theme.card_bg_inactive)
 
         # Draw sharp rectangular track
-        pen = QPen(QColor("#000000"), 2)
+        pen = QPen(QColor(theme.border), 2)
         painter.setPen(pen)
         painter.setBrush(QBrush(bg_col))
         painter.drawRect(track_x, track_y, track_w, track_h)
@@ -334,17 +547,20 @@ class NeoSwitch(QCheckBox):
         thumb_x = (track_x + track_w - thumb_s - 3.5) if checked else (track_x + 3.5)
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor("#000000") if self.isEnabled() else QColor("#9ca3af")))
+        thumb_col = QColor("#000000" if checked else theme.switch_thumb) if self.isEnabled() else QColor(theme.entry_disabled_fg)
+        painter.setBrush(QBrush(thumb_col))
         painter.drawRect(int(thumb_x), int(thumb_y), thumb_s, thumb_s)
 
         # Draw text label
         if self.text():
-            painter.setPen(QColor("#000000") if self.isEnabled() else QColor("#9ca3af"))
+            text_col = QColor(theme.text) if self.isEnabled() else QColor(theme.entry_disabled_fg)
+            painter.setPen(text_col)
             painter.setFont(self.font())
             text_x = track_x + track_w + 12
             text_w = max(10, self.width() - text_x)
             text_rect = QRect(text_x, 0, text_w, self.height())
             painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft | Qt.TextWordWrap, self.text())
+        painter.end()
 
     def get(self) -> int:
         return 1 if self.isChecked() else 0
@@ -363,52 +579,60 @@ class NeoSwitch(QCheckBox):
 class NeoSlider(QSlider):
     """
     Neo-Brutalist horizontal slider mapped to floating-point ranges,
-    featuring a lilac track, purple progress groove, and crisp white handle.
+    featuring a track groove, progress fill, and handle.
     """
 
-    def __init__(self, from_: float, to_: float, steps: int, initial_val: float = 1.0, parent=None):
+    def __init__(self, from_: float, to_: float, steps: int, initial_val: float = 1.0, parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(Qt.Horizontal, parent)
         self.from_ = from_
         self.to_ = to_
         self.steps = max(1, steps)
         self._command: Optional[Callable[[float], None]] = None
         self._current_val = initial_val
+        self._theme = theme or get_current_theme()
 
         self.setRange(0, self.steps)
         self.setFixedHeight(26)
         self.setCursor(Qt.PointingHandCursor)
+        self._apply_style()
 
+        self.set(initial_val)
+        self.valueChanged.connect(self._on_slider_moved)
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._apply_style()
+
+    def _apply_style(self):
+        theme = self._theme
         self.setStyleSheet(f"""
             QSlider {{
                 height: 26px;
             }}
             QSlider::groove:horizontal {{
-                border: 2px solid #000000;
+                border: 2px solid {theme.border};
                 height: 10px;
-                background: {COLOR_TRACK_LILAC};
+                background: {theme.slider_groove};
                 border-radius: 0px;
             }}
             QSlider::sub-page:horizontal {{
-                background: {COLOR_PROGRESS_PURPLE};
-                border: 2px solid #000000;
+                background: {theme.slider_progress};
+                border: 2px solid {theme.border};
                 height: 10px;
                 border-radius: 0px;
             }}
             QSlider::handle:horizontal {{
-                background: #ffffff;
-                border: 1.5px solid #000000;
+                background: {theme.slider_handle};
+                border: 1.5px solid {theme.slider_handle_border};
                 width: 20px;
                 height: 20px;
                 margin: -6px 0;
                 border-radius: 0px;
             }}
             QSlider::handle:horizontal:hover {{
-                background: #f3e8ff;
+                background: {theme.slider_handle_hover};
             }}
         """)
-
-        self.set(initial_val)
-        self.valueChanged.connect(self._on_slider_moved)
 
     def wheelEvent(self, event):
         """Ignore scroll wheel on slider to keep it click-n-slide and avoid hijacking window scroll."""
@@ -436,23 +660,31 @@ class NeoSlider(QSlider):
 
 
 class NeoProgressBar(QProgressBar):
-    """Neo-Brutalist progress bar with 2px black border and punchy green fill."""
+    """Neo-Brutalist progress bar with 2px border and punchy fill."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
+        self._theme = theme or get_current_theme()
         self.setRange(0, 1000)
         self.setValue(0)
         self.setTextVisible(False)
         self.setFixedHeight(12)
-        self._progress_color = "#ffffff"  # Starts clear/white
+        self._progress_color = self._theme.entry_bg
+        self._apply_style()
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        if self.value() == 0:
+            self._progress_color = self._theme.entry_bg
         self._apply_style()
 
     def _apply_style(self):
+        theme = self._theme
         self.setStyleSheet(f"""
             QProgressBar {{
-                border: 2px solid #000000;
+                border: 2px solid {theme.border};
                 border-radius: 0px;
-                background-color: #ffffff;
+                background-color: {theme.entry_bg};
                 height: 12px;
             }}
             QProgressBar::chunk {{
@@ -487,9 +719,11 @@ class NeoStandaloneButtonGroup(QWidget):
         command: Optional[Callable[[str], None]] = None,
         height: int = 36,
         selected: Optional[str] = None,
+        theme: Optional[NeoTheme] = None,
     ):
         super().__init__(parent)
         self.command = command
+        self._theme = theme or get_current_theme()
         self._values = list(values) if values else []
         self._current_value = selected if (selected and selected in self._values) else (self._values[0] if self._values else "")
         self._buttons: dict[str, QPushButton] = {}
@@ -511,14 +745,19 @@ class NeoStandaloneButtonGroup(QWidget):
 
         self._refresh_styles()
 
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._refresh_styles()
+
     def _refresh_styles(self):
+        theme = self._theme
         for val, btn in self._buttons.items():
             if val == self._current_value:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {COLOR_NEO_YELLOW};
+                        background-color: {theme.yellow};
                         color: #000000;
-                        border: 2px solid #000000;
+                        border: 2px solid {theme.border};
                         border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
@@ -526,45 +765,45 @@ class NeoStandaloneButtonGroup(QWidget):
                         padding: 4px 12px;
                     }}
                     QPushButton:hover {{
-                        background-color: {COLOR_NEO_YELLOW_HOVER};
+                        background-color: {theme.yellow_hover};
                     }}
                     QPushButton:pressed {{
-                        background-color: {COLOR_NEO_YELLOW_HOVER};
+                        background-color: {theme.yellow_hover};
                         padding-top: 6px;
                         padding-left: 14px;
                     }}
                     QPushButton:disabled {{
-                        background-color: #f3f4f6;
-                        color: #9ca3af;
-                        border-color: #9ca3af;
+                        background-color: {theme.btn_disabled_bg};
+                        color: {theme.btn_disabled_fg};
+                        border-color: {theme.btn_disabled_border};
                     }}
                 """)
             else:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #e5e7eb;
-                        color: #4b5563;
-                        border: 2px solid #000000;
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {theme.unselected_btn_bg};
+                        color: {theme.unselected_btn_fg};
+                        border: 2px solid {theme.border};
                         border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
                         padding: 4px 12px;
-                    }
-                    QPushButton:hover {
-                        background-color: #d1d5db;
-                        color: #000000;
-                    }
-                    QPushButton:pressed {
-                        background-color: #9ca3af;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {theme.unselected_btn_hover};
+                        color: {theme.text};
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {theme.unselected_btn_pressed};
                         padding-top: 6px;
                         padding-left: 14px;
-                    }
-                    QPushButton:disabled {
-                        background-color: #f3f4f6;
-                        color: #9ca3af;
-                        border-color: #9ca3af;
-                    }
+                    }}
+                    QPushButton:disabled {{
+                        background-color: {theme.btn_disabled_bg};
+                        color: {theme.btn_disabled_fg};
+                        border-color: {theme.btn_disabled_border};
+                    }}
                 """)
 
     def _on_btn_click(self, val: str):
@@ -595,16 +834,27 @@ class NeoStandaloneButtonGroup(QWidget):
 class NeoComboBox(QComboBox):
     """Neo-Brutalist styled dropdown with thick borders, yellow trigger button, and crisp downward arrow."""
 
-    def __init__(self, parent=None, values: Optional[List[str]] = None, command: Optional[Callable[[str], None]] = None):
+    def __init__(self, parent=None, values: Optional[List[str]] = None, command: Optional[Callable[[str], None]] = None, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
         self.command = command
+        self._theme = theme or get_current_theme()
         if values:
             self.addItems(values)
+        self._apply_style()
+        if command:
+            self.currentTextChanged.connect(command)
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._apply_style()
+
+    def _apply_style(self):
+        theme = self._theme
         self.setStyleSheet(f"""
             QComboBox {{
-                background-color: #ffffff;
-                color: #000000;
-                border: 2px solid #000000;
+                background-color: {theme.entry_bg};
+                color: {theme.text};
+                border: 2px solid {theme.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
@@ -613,21 +863,21 @@ class NeoComboBox(QComboBox):
                 min-height: 28px;
             }}
             QComboBox:disabled {{
-                background-color: #f9fafb;
-                color: #9ca3af;
-                border: 2px solid #d1d5db;
+                background-color: {theme.entry_disabled_bg};
+                color: {theme.entry_disabled_fg};
+                border: 2px solid {theme.entry_disabled_border};
             }}
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: 28px;
-                border-left: 2px solid #000000;
-                background-color: {COLOR_NEO_YELLOW};
+                border-left: 2px solid {theme.border};
+                background-color: {theme.yellow};
                 border-radius: 0px;
             }}
             QComboBox::drop-down:disabled {{
-                background-color: #e5e7eb;
-                border-left: 2px solid #d1d5db;
+                background-color: {theme.btn_disabled_bg};
+                border-left: 2px solid {theme.entry_disabled_border};
             }}
             QComboBox::down-arrow {{
                 image: none;
@@ -635,18 +885,16 @@ class NeoComboBox(QComboBox):
                 height: 0px;
             }}
             QComboBox QAbstractItemView {{
-                background-color: #ffffff;
-                color: #000000;
-                border: 2px solid #000000;
+                background-color: {theme.card_bg};
+                color: {theme.text};
+                border: 2px solid {theme.border};
                 border-radius: 0px;
-                selection-background-color: {COLOR_NEO_YELLOW};
+                selection-background-color: {theme.yellow};
                 selection-color: #000000;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
             }}
         """)
-        if command:
-            self.currentTextChanged.connect(command)
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -686,12 +934,21 @@ class NeoComboBox(QComboBox):
 class ThumbnailPreviewLabel(QLabel):
     """Aspect-ratio-preserving real-time slide preview renderer."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
         self._pixmap: Optional[QPixmap] = None
+        self._theme = theme or get_current_theme()
         self.setAlignment(Qt.AlignCenter)
         self.setText("No slides captured yet\nPreview will appear here in real time")
-        self.setStyleSheet("color: #6b7280; font-family: 'Segoe UI'; font-size: 12px; font-weight: bold;")
+        self._apply_style()
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        self._apply_style()
+
+    def _apply_style(self):
+        theme = self._theme
+        self.setStyleSheet(f"color: {theme.text_dim}; font-family: 'Segoe UI'; font-size: 12px; font-weight: bold;")
 
     def set_thumbnail_pixmap(self, pixmap: QPixmap):
         self._pixmap = pixmap
@@ -711,53 +968,73 @@ class ThumbnailPreviewLabel(QLabel):
             self.setPixmap(scaled)
 
 
-def create_neo_card_header(title: str, badge_color: str = COLOR_NEO_YELLOW, parent=None) -> QWidget:
-    """Creates a signature Neo-Brutalist card header with retro window dots and punchy badge."""
-    head = QWidget(parent)
-    head_layout = QHBoxLayout(head)
-    head_layout.setContentsMargins(16, 12, 16, 8)
-    head_layout.setSpacing(10)
+class NeoCardHeader(QWidget):
+    """Neo-Brutalist card header with retro window dots and punchy badge."""
 
-    # Retro Window Control Dots
-    dots_box = QWidget(head)
-    dots_layout = QHBoxLayout(dots_box)
-    dots_layout.setContentsMargins(0, 0, 0, 0)
-    dots_layout.setSpacing(5)
+    def __init__(self, title: str, badge_color: str = COLOR_NEO_YELLOW, parent=None, theme: Optional[NeoTheme] = None):
+        super().__init__(parent)
+        self._theme = theme or get_current_theme()
+        self._badge_color = badge_color
+        self._title = title
+        self._dots = []
 
-    for dot_col in ["#ff5f56", "#ffbd2e", "#27c93f"]:
-        dot = QFrame(dots_box)
-        dot.setFixedSize(12, 12)
-        dot.setStyleSheet(f"""
+        head_layout = QHBoxLayout(self)
+        head_layout.setContentsMargins(16, 12, 16, 8)
+        head_layout.setSpacing(10)
+
+        # Retro Window Control Dots
+        self.dots_box = QWidget(self)
+        dots_layout = QHBoxLayout(self.dots_box)
+        dots_layout.setContentsMargins(0, 0, 0, 0)
+        dots_layout.setSpacing(5)
+
+        for dot_col in ["#ff5f56", "#ffbd2e", "#27c93f"]:
+            dot = QFrame(self.dots_box)
+            dot.setFixedSize(12, 12)
+            dot.setProperty("dot_col", dot_col)
+            dots_layout.addWidget(dot)
+            self._dots.append(dot)
+
+        head_layout.addWidget(self.dots_box)
+
+        # Neo badge tag
+        self.tag = QFrame(self)
+        tag_layout = QHBoxLayout(self.tag)
+        tag_layout.setContentsMargins(10, 3, 10, 3)
+
+        self.lbl = NeoLabel(title, self.tag)
+        self.lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        tag_layout.addWidget(self.lbl)
+
+        head_layout.addWidget(self.tag)
+        head_layout.addStretch()
+
+        self.set_theme(self._theme)
+
+    def set_theme(self, theme: NeoTheme):
+        self._theme = theme
+        for dot in self._dots:
+            col = dot.property("dot_col")
+            dot.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {col};
+                    border: 1.5px solid {theme.border};
+                    border-radius: 0px;
+                }}
+            """)
+        self.tag.setStyleSheet(f"""
             QFrame {{
-                background-color: {dot_col};
-                border: 1.5px solid #000000;
+                background-color: {self._badge_color};
+                border: 2px solid {theme.border};
                 border-radius: 0px;
             }}
         """)
-        dots_layout.addWidget(dot)
 
-    head_layout.addWidget(dots_box)
 
-    # Neo badge tag
-    tag = QFrame(head)
-    tag.setStyleSheet(f"""
-        QFrame {{
-            background-color: {badge_color};
-            border: 2px solid #000000;
-            border-radius: 0px;
-        }}
-    """)
-    tag_layout = QHBoxLayout(tag)
-    tag_layout.setContentsMargins(10, 3, 10, 3)
-
-    lbl = NeoLabel(title, tag)
-    lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-    lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
-    tag_layout.addWidget(lbl)
-
-    head_layout.addWidget(tag)
-    head_layout.addStretch()
-    return head
+def create_neo_card_header(title: str, badge_color: str = COLOR_NEO_YELLOW, parent=None) -> NeoCardHeader:
+    """Creates a signature Neo-Brutalist card header with retro window dots and punchy badge."""
+    return NeoCardHeader(title, badge_color=badge_color, parent=parent)
 
 
 # ==============================================================================
@@ -774,10 +1051,15 @@ class YT2PDFApp(QMainWindow):
 
         super().__init__()
 
+        self.theme = LIGHT_THEME
+        set_current_theme(self.theme)
+        self._slider_rows = []
+        self._kpi_badges = []
+
         self.setWindowTitle("YT2PDF — Smart Presentation Slide Extractor & Lossless PDF Builder")
         self.resize(1080, 660)
         self.setMinimumSize(980, 560)
-        self.setStyleSheet(f"QMainWindow {{ background-color: {COLOR_CANVAS_BG}; }}")
+        self.setStyleSheet(f"QMainWindow {{ background-color: {self.theme.canvas_bg}; }}")
 
         # Worker & Execution State
         self.worker: Optional[ExtractionWorker] = None
@@ -832,7 +1114,7 @@ class YT2PDFApp(QMainWindow):
 
     def _setup_root_container(self):
         self.root_widget = QWidget(self)
-        self.root_widget.setStyleSheet(f"background-color: {COLOR_CANVAS_BG};")
+        self.root_widget.setStyleSheet(f"background-color: {self.theme.canvas_bg};")
         self.setCentralWidget(self.root_widget)
 
         self.root_layout = QVBoxLayout(self.root_widget)
@@ -840,44 +1122,60 @@ class YT2PDFApp(QMainWindow):
         self.root_layout.setSpacing(6)
 
     def _create_header(self):
-        """Top banner with application title and subtitle."""
-        header_frame = QWidget(self.root_widget)
-        h_layout = QHBoxLayout(header_frame)
+        """Top banner with application title, subtitle pill, theme toggle, and utility buttons."""
+        self.header_frame = QWidget(self.root_widget)
+        h_layout = QHBoxLayout(self.header_frame)
         h_layout.setContentsMargins(4, 0, 4, 4)
         h_layout.setSpacing(12)
 
         # Title
-        title_label = NeoLabel("YT2PDF ✦", header_frame)
-        title_label.setFont(QFont("Segoe UI", 22, QFont.Bold))
-        title_label.setStyleSheet("color: #000000; border: none;")
-        h_layout.addWidget(title_label)
+        self.title_label = NeoLabel("YT2PDF ✦", self.header_frame)
+        self.title_label.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        self.title_label.setStyleSheet("color: #000000; border: none;")
+        h_layout.addWidget(self.title_label)
 
         # Pill Subtitle
-        sub_pill = QFrame(header_frame)
-        sub_pill.setStyleSheet(f"""
+        self.sub_pill = QFrame(self.header_frame)
+        self.sub_pill.setStyleSheet(f"""
             QFrame {{
-                background-color: {COLOR_NEO_YELLOW};
-                border: 2px solid #000000;
+                background-color: {self.theme.yellow};
+                border: 2px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
-        sp_layout = QHBoxLayout(sub_pill)
+        sp_layout = QHBoxLayout(self.sub_pill)
         sp_layout.setContentsMargins(12, 3, 12, 3)
-        sub_lbl = NeoLabel("✦ SLIDE EXTRACTOR & LOSSLESS PDF BUILDER ✦", sub_pill)
-        sub_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
-        sp_layout.addWidget(sub_lbl)
-        h_layout.addWidget(sub_pill)
+        self.sub_lbl = NeoLabel("✦ SLIDE EXTRACTOR & LOSSLESS PDF BUILDER ✦", self.sub_pill)
+        self.sub_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        sp_layout.addWidget(self.sub_lbl)
+        h_layout.addWidget(self.sub_pill)
 
         h_layout.addStretch()
+
+        # Sun / Moon Theme Toggle Button (to the left of DeDuplicate PDF button)
+        self.theme_toggle_btn = NeoButton(
+            "🌙",
+            bg_color=self.theme.yellow,
+            hover_color=self.theme.yellow_hover,
+            height=34,
+            font_size=15,
+            parent=self.header_frame,
+            theme=self.theme,
+        )
+        self.theme_toggle_btn.setFixedWidth(44)
+        self.theme_toggle_btn.setToolTip("Switch to Dark Theme")
+        self.theme_toggle_btn.clicked.connect(self.toggle_theme)
+        h_layout.addWidget(self.theme_toggle_btn)
 
         # Deduplicate PDF button (Lilac)
         self.header_dedup_btn = NeoButton(
             "Deduplicate PDF",
-            bg_color=COLOR_NEO_LILAC,
-            hover_color=COLOR_NEO_LILAC_HOVER,
+            bg_color=self.theme.lilac,
+            hover_color=self.theme.lilac_hover,
             height=34,
-            parent=header_frame,
+            parent=self.header_frame,
+            theme=self.theme,
         )
         self.header_dedup_btn.clicked.connect(lambda: self._open_deduplicate_dialog())
         h_layout.addWidget(self.header_dedup_btn)
@@ -885,17 +1183,18 @@ class YT2PDFApp(QMainWindow):
         # View PDF button (Cyan) - starts disabled until extraction completes
         self.header_view_pdf_btn = NeoButton(
             "View PDF",
-            bg_color=COLOR_NEO_BLUE,
-            hover_color=COLOR_NEO_BLUE_HOVER,
+            bg_color=self.theme.blue,
+            hover_color=self.theme.blue_hover,
             height=34,
-            parent=header_frame,
+            parent=self.header_frame,
+            theme=self.theme,
         )
         self.header_view_pdf_btn.setFixedWidth(96)
         self.header_view_pdf_btn.setEnabled(False)
         self.header_view_pdf_btn.clicked.connect(self._on_view_pdf)
         h_layout.addWidget(self.header_view_pdf_btn)
 
-        self.root_layout.addWidget(header_frame)
+        self.root_layout.addWidget(self.header_frame)
 
     def _create_main_content(self):
         """Split content layout: Left scrollable configuration, Right live dashboard & preview."""
@@ -1028,9 +1327,9 @@ class YT2PDFApp(QMainWindow):
         card_layout.addWidget(input_row)
 
         # Output PDF destination label
-        out_lbl = NeoLabel("Output PDF File:", card)
-        out_lbl.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
-        card_layout.addWidget(out_lbl)
+        self.output_label = NeoLabel("Output PDF File:", card)
+        self.output_label.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
+        card_layout.addWidget(self.output_label)
 
         # Output entry row
         out_row = QWidget(card)
@@ -1128,6 +1427,7 @@ class YT2PDFApp(QMainWindow):
 
     def _add_slider_row(self, parent, title, subtitle, initial_val, initial_val_str, from_, to_, steps, format_fn):
         """Helper to create slider row with title, dynamic value pill badge, and subtitle."""
+        t = getattr(self, "theme", LIGHT_THEME)
         row_widget = QWidget(parent)
         r_layout = QVBoxLayout(row_widget)
         r_layout.setContentsMargins(16, 4, 16, 6)
@@ -1139,6 +1439,7 @@ class YT2PDFApp(QMainWindow):
 
         t_lbl = NeoLabel(title, top_line)
         t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text};")
         tl_layout.addWidget(t_lbl)
         tl_layout.addStretch()
 
@@ -1148,9 +1449,9 @@ class YT2PDFApp(QMainWindow):
         val_label.setFixedSize(62, 26)
         val_label.setStyleSheet(f"""
             QLabel {{
-                background-color: {COLOR_NEO_YELLOW};
+                background-color: {t.yellow};
                 color: #000000;
-                border: 2px solid #000000;
+                border: 2px solid {t.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
@@ -1161,17 +1462,21 @@ class YT2PDFApp(QMainWindow):
 
         sub_lbl = NeoLabel(subtitle, row_widget)
         sub_lbl.setFont(QFont("Segoe UI", 10))
-        sub_lbl.setStyleSheet("color: #000000; border: none;")
+        sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none;")
         sub_lbl.setWordWrap(True)
         r_layout.addWidget(sub_lbl)
 
-        slider = NeoSlider(from_=from_, to_=to_, steps=steps, initial_val=initial_val, parent=row_widget)
+        slider = NeoSlider(from_=from_, to_=to_, steps=steps, initial_val=initial_val, parent=row_widget, theme=t)
 
         def on_slider_move(val):
             val_label.configure(text=format_fn(val))
 
         slider._command = on_slider_move
         r_layout.addWidget(slider)
+
+        if not hasattr(self, "_slider_rows"):
+            self._slider_rows = []
+        self._slider_rows.append((t_lbl, val_label, sub_lbl, slider))
 
         return slider, val_label
 
@@ -1367,10 +1672,12 @@ class YT2PDFApp(QMainWindow):
     def _create_kpi_badge(self, parent, title: str, initial_val: str, bg_color: str = COLOR_NEO_YELLOW) -> Tuple[QFrame, NeoLabel]:
         """Creates a stylized Neo-Brutalist KPI badge card."""
         badge = QFrame(parent)
+        badge.setProperty("badge_bg", bg_color)
+        t = getattr(self, "theme", LIGHT_THEME)
         badge.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg_color};
-                border: 2px solid #000000;
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -1388,6 +1695,10 @@ class YT2PDFApp(QMainWindow):
         v_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
         b_layout.addWidget(v_lbl)
 
+        if not hasattr(self, "_kpi_badges"):
+            self._kpi_badges = []
+        self._kpi_badges.append((badge, v_lbl))
+
         return badge, v_lbl
 
     def _create_footer(self):
@@ -1396,10 +1707,10 @@ class YT2PDFApp(QMainWindow):
         f_layout = QHBoxLayout(footer)
         f_layout.setContentsMargins(4, 2, 4, 2)
 
-        lbl = NeoLabel("YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced", footer)
-        lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        lbl.setStyleSheet("color: #000000; border: none;")
-        f_layout.addWidget(lbl)
+        self.footer_lbl = NeoLabel("YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced", footer)
+        self.footer_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        self.footer_lbl.setStyleSheet("color: #000000; border: none;")
+        f_layout.addWidget(self.footer_lbl)
         f_layout.addStretch()
 
         self.root_layout.addWidget(footer)
@@ -1591,42 +1902,43 @@ class YT2PDFApp(QMainWindow):
     def _update_pip_mode_ui_state(self):
         enabled = self.mask_presenter_switch.isChecked()
         choice = self.pip_mode_dropdown.get()
+        t = getattr(self, "theme", LIGHT_THEME)
 
         if enabled:
-            # Active Buttercream Card
+            # Active Card
             self.pip_mode_frame.setStyleSheet(f"""
                 QFrame#pip_frame {{
-                    background-color: {COLOR_CARD_BG_ALT};
-                    border: 2px solid #000000;
+                    background-color: {t.card_bg_alt};
+                    border: 2px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
             if hasattr(self, "pip_pos_label"):
-                self.pip_pos_label.setStyleSheet("color: #000000; border: none; font-weight: bold;")
+                self.pip_pos_label.setStyleSheet(f"color: {t.text}; border: none; font-weight: bold;")
             self.pip_mode_dropdown.setEnabled(True)
 
             is_custom = (choice == PresenterMaskMode.CUSTOM.value)
             self.custom_box_entry.setEnabled(is_custom)
             if hasattr(self, "custom_box_label"):
                 self.custom_box_label.setStyleSheet(
-                    "color: #000000; border: none; font-weight: bold;"
+                    f"color: {t.text}; border: none; font-weight: bold;"
                     if is_custom else
-                    "color: #9ca3af; border: none; font-weight: bold;"
+                    f"color: {t.text_dim}; border: none; font-weight: bold;"
                 )
         else:
             # Greyed-out Inactive Card
-            self.pip_mode_frame.setStyleSheet("""
-                QFrame#pip_frame {
-                    background-color: #f3f4f6;
-                    border: 2px solid #d1d5db;
+            self.pip_mode_frame.setStyleSheet(f"""
+                QFrame#pip_frame {{
+                    background-color: {t.card_bg_inactive};
+                    border: 2px solid {t.border_muted};
                     border-radius: 0px;
-                }
+                }}
             """)
             if hasattr(self, "pip_pos_label"):
-                self.pip_pos_label.setStyleSheet("color: #9ca3af; border: none; font-weight: bold;")
+                self.pip_pos_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold;")
             self.pip_mode_dropdown.setEnabled(False)
             if hasattr(self, "custom_box_label"):
-                self.custom_box_label.setStyleSheet("color: #9ca3af; border: none; font-weight: bold;")
+                self.custom_box_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold;")
             self.custom_box_entry.setEnabled(False)
 
     # ---------------- Start & Cancellation Pipeline ----------------
@@ -1817,7 +2129,7 @@ class YT2PDFApp(QMainWindow):
         self._show_completion_dialog(out_path, slides_count, elapsed)
 
     def _show_completion_dialog(self, pdf_path: str, slides_count: int, elapsed: float):
-        dialog = CompletionDialog(self, pdf_path, slides_count, elapsed)
+        dialog = CompletionDialog(self, pdf_path, slides_count, elapsed, theme=self.theme)
         self._completion_dialog = dialog
         dialog.show()
 
@@ -1826,9 +2138,222 @@ class YT2PDFApp(QMainWindow):
             curr_out = clean_file_path(self.output_entry.get())
             if curr_out and os.path.exists(curr_out):
                 default_pdf = curr_out
-        dialog = DeduplicatePDFDialog(self, default_pdf_path=default_pdf)
+        dialog = DeduplicatePDFDialog(self, default_pdf_path=default_pdf, theme=self.theme)
         self._dedup_dialog = dialog
         dialog.show()
+
+    # ---------------- Theme Management ----------------
+
+    def toggle_theme(self):
+        """Switches between Light and Dark themes."""
+        if self.theme.name == "light":
+            self.apply_theme(DARK_THEME)
+        else:
+            self.apply_theme(LIGHT_THEME)
+
+    def is_dark_mode(self) -> bool:
+        """Returns True if the current theme is Dark Theme."""
+        return self.theme.name == "dark"
+
+    def apply_theme(self, theme: Optional[NeoTheme] = None):
+        """Applies the given theme (or refreshes current) across all application widgets."""
+        if theme:
+            self.theme = theme
+        set_current_theme(self.theme)
+        t = self.theme
+
+        # Window & Root background
+        self.setStyleSheet(f"QMainWindow {{ background-color: {t.canvas_bg}; }}")
+        if hasattr(self, "root_widget"):
+            self.root_widget.setStyleSheet(f"background-color: {t.canvas_bg};")
+
+        # Header elements
+        if hasattr(self, "title_label"):
+            self.title_label.setStyleSheet(f"color: {t.text}; border: none;")
+        if hasattr(self, "sub_pill"):
+            self.sub_pill.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {t.yellow};
+                    border: 2px solid {t.border};
+                    border-radius: 0px;
+                }}
+            """)
+        if hasattr(self, "sub_lbl"):
+            self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+
+        # Theme toggle button
+        if hasattr(self, "theme_toggle_btn"):
+            if t.name == "dark":
+                self.theme_toggle_btn.setText("☀️")
+                self.theme_toggle_btn.setToolTip("Switch to Light Theme")
+            else:
+                self.theme_toggle_btn.setText("🌙")
+                self.theme_toggle_btn.setToolTip("Switch to Dark Theme")
+            self.theme_toggle_btn.set_colors(t.yellow, t.yellow_hover)
+            self.theme_toggle_btn.set_theme(t)
+
+        if hasattr(self, "header_dedup_btn"):
+            self.header_dedup_btn.set_colors(t.lilac, t.lilac_hover)
+            self.header_dedup_btn.set_theme(t)
+        if hasattr(self, "header_view_pdf_btn"):
+            self.header_view_pdf_btn.set_colors(t.blue, t.blue_hover)
+            self.header_view_pdf_btn.set_theme(t)
+
+        # Scroll area
+        if hasattr(self, "scroll_area"):
+            self.scroll_area.setStyleSheet(f"""
+                QScrollArea {{
+                    background: transparent;
+                    border: none;
+                }}
+                QScrollBar:vertical {{
+                    border: 2px solid {t.border};
+                    background: {t.scrollbar_bg};
+                    width: 14px;
+                    margin: 0px;
+                    border-radius: 0px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: {t.scrollbar_handle};
+                    min-height: 24px;
+                    border-radius: 0px;
+                }}
+                QScrollBar::handle:vertical:hover {{
+                    background: {t.scrollbar_hover};
+                }}
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                    height: 0px;
+                }}
+                QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                    background: none;
+                }}
+                QScrollBar:horizontal {{
+                    height: 0px;
+                }}
+            """)
+
+        # Left Column Cards
+        for card_id in ["card_01", "card_02", "card_03"]:
+            card = self.findChild(QFrame, card_id)
+            if card:
+                card.setStyleSheet(f"""
+                    QFrame#{card_id} {{
+                        background-color: {t.card_bg};
+                        border: 2.5px solid {t.border};
+                        border-radius: 0px;
+                    }}
+                """)
+
+        # Card Headers
+        for header in self.findChildren(NeoCardHeader):
+            header.set_theme(t)
+
+        # Card 01 controls
+        if hasattr(self, "source_segmented"):
+            self.source_segmented.set_theme(t)
+        if hasattr(self, "input_label"):
+            self.input_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px;")
+        if hasattr(self, "output_label"):
+            self.output_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px;")
+        if hasattr(self, "input_entry"):
+            self.input_entry.set_theme(t)
+        if hasattr(self, "output_entry"):
+            self.output_entry.set_theme(t)
+        if hasattr(self, "input_browse_btn"):
+            self.input_browse_btn.set_theme(t)
+        if hasattr(self, "input_action_btn"):
+            self.input_action_btn.set_theme(t)
+        if hasattr(self, "output_browse_btn"):
+            self.output_browse_btn.set_theme(t)
+
+        # Card 02 Sliders and badges
+        if hasattr(self, "_slider_rows"):
+            for t_lbl, val_label, sub_lbl, slider in self._slider_rows:
+                t_lbl.setStyleSheet(f"color: {t.text};")
+                val_label.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {t.yellow};
+                        color: #000000;
+                        border: 2px solid {t.border};
+                        border-radius: 0px;
+                        font-family: 'Segoe UI', sans-serif;
+                        font-weight: bold;
+                    }}
+                """)
+                sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none;")
+                slider.set_theme(t)
+
+        # Card 03 Controls
+        if hasattr(self, "mask_presenter_switch"):
+            self.mask_presenter_switch.set_theme(t)
+        if hasattr(self, "pip_mode_frame"):
+            self._update_pip_mode_ui_state()
+        if hasattr(self, "pip_mode_dropdown"):
+            self.pip_mode_dropdown.set_theme(t)
+        if hasattr(self, "custom_box_entry"):
+            self.custom_box_entry.set_theme(t)
+
+        for sw_name in ["ignore_chrome_switch", "auto_crop_switch", "prune_duplicates_switch", "filter_narrator_switch"]:
+            if hasattr(self, sw_name):
+                getattr(self, sw_name).set_theme(t)
+
+        # Right Column
+        if hasattr(self, "right_col"):
+            self.right_col.setStyleSheet(f"""
+                QFrame#right_col_card {{
+                    background-color: {t.card_bg};
+                    border: 2.5px solid {t.border};
+                    border-radius: 0px;
+                }}
+            """)
+        if hasattr(self, "status_box"):
+            self.status_box.setStyleSheet(f"""
+                QFrame#status_box {{
+                    background-color: {t.status_bg};
+                    border: 2px solid {t.border};
+                    border-radius: 0px;
+                }}
+            """)
+        if hasattr(self, "status_label"):
+            curr_ss = self.status_label.styleSheet()
+            if COLOR_NEO_RED not in curr_ss and t.red not in curr_ss:
+                self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
+        if hasattr(self, "progress_bar"):
+            self.progress_bar.set_theme(t)
+
+        # KPI Badges
+        if hasattr(self, "_kpi_badges"):
+            for badge_frame, v_lbl in self._kpi_badges:
+                bg = badge_frame.property("badge_bg") or t.yellow
+                badge_frame.setStyleSheet(f"""
+                    QFrame {{
+                        background-color: {bg};
+                        border: 2px solid {t.border};
+                        border-radius: 0px;
+                    }}
+                """)
+
+        if hasattr(self, "preview_title_lbl"):
+            self.preview_title_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-top: 2px;")
+        if hasattr(self, "preview_frame"):
+            self.preview_frame.setStyleSheet(f"""
+                QFrame#preview_frame {{
+                    background-color: {t.inner_bg};
+                    border: 2px solid {t.border};
+                    border-radius: 0px;
+                }}
+            """)
+        if hasattr(self, "preview_label"):
+            self.preview_label.set_theme(t)
+
+        if hasattr(self, "start_btn"):
+            self.start_btn.set_theme(t)
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.set_theme(t)
+
+        # Footer
+        if hasattr(self, "footer_lbl"):
+            self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none;")
 
     def _handle_error(self, error_message: str):
         self._set_processing_ui_state(False)
@@ -1855,12 +2380,14 @@ class YT2PDFApp(QMainWindow):
 class CompletionDialog(QDialog):
     """Celebratory modal dialog with 2x2 action button grid in signature Neo-Brutalist styling."""
 
-    def __init__(self, parent, pdf_path: str, slides_count: int, elapsed: float):
+    def __init__(self, parent, pdf_path: str, slides_count: int, elapsed: float, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
+        self.theme = theme or getattr(parent, "theme", None) or get_current_theme()
+        t = self.theme
         self.setWindowTitle("Extraction Complete")
         self.setFixedSize(540, 310)
         self.setModal(True)
-        self.setStyleSheet(f"QDialog {{ background-color: {COLOR_CANVAS_BG}; }}")
+        self.setStyleSheet(f"QDialog {{ background-color: {t.canvas_bg}; }}")
 
         mins = int(elapsed // 60)
         secs = int(elapsed % 60)
@@ -1873,8 +2400,8 @@ class CompletionDialog(QDialog):
         card.setObjectName("comp_card")
         card.setStyleSheet(f"""
             QFrame#comp_card {{
-                background-color: {COLOR_CARD_BG};
-                border: 3px solid #000000;
+                background-color: {t.card_bg};
+                border: 3px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -1882,15 +2409,17 @@ class CompletionDialog(QDialog):
         c_layout.setContentsMargins(16, 14, 16, 16)
         c_layout.setSpacing(12)
 
-        c_layout.addWidget(create_neo_card_header("SLIDES EXTRACTED SUCCESSFULLY! ✦", COLOR_NEO_GREEN, card))
+        header = create_neo_card_header("SLIDES EXTRACTED SUCCESSFULLY! ✦", t.green, card)
+        header.set_theme(t)
+        c_layout.addWidget(header)
 
-        # Buttercream summary card
+        # Summary card
         info_card = QFrame(card)
         info_card.setObjectName("info_card")
         info_card.setStyleSheet(f"""
             QFrame#info_card {{
-                background-color: {COLOR_CARD_BG_ALT};
-                border: 2px solid #000000;
+                background-color: {t.card_bg_alt};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -1900,12 +2429,12 @@ class CompletionDialog(QDialog):
 
         t_lbl = NeoLabel(f"Compiled {slides_count} unique presentation slides in {time_text}.", info_card)
         t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        t_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        t_lbl.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
         ic_layout.addWidget(t_lbl)
 
         p_lbl = NeoLabel(f"Saved to: {pdf_path}", info_card)
         p_lbl.setFont(QFont("Segoe UI", 9))
-        p_lbl.setStyleSheet(f"color: {COLOR_TEXT_DIM}; border: none; background: transparent;")
+        p_lbl.setStyleSheet(f"color: {t.text_dim}; border: none; background: transparent;")
         p_lbl.setWordWrap(True)
         ic_layout.addWidget(p_lbl)
         c_layout.addWidget(info_card)
@@ -1926,19 +2455,19 @@ class CompletionDialog(QDialog):
             parent._open_folder(os.path.dirname(os.path.abspath(pdf_path)))
             self.close()
 
-        btn_open = NeoButton("Open PDF", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=40, font_size=12, parent=card)
+        btn_open = NeoButton("Open PDF", bg_color=t.green, hover_color=t.green_hover, height=40, font_size=12, parent=card, theme=t)
         btn_open.clicked.connect(open_pdf)
         btn_grid.addWidget(btn_open, 0, 0)
 
-        btn_review = NeoButton("Review Duplicates", bg_color=COLOR_NEO_LILAC, hover_color=COLOR_NEO_LILAC_HOVER, height=40, font_size=12, parent=card)
+        btn_review = NeoButton("Review Duplicates", bg_color=t.lilac, hover_color=t.lilac_hover, height=40, font_size=12, parent=card, theme=t)
         btn_review.clicked.connect(review_duplicates)
         btn_grid.addWidget(btn_review, 0, 1)
 
-        btn_folder = NeoButton("Open Folder", bg_color=COLOR_NEO_YELLOW, hover_color=COLOR_NEO_YELLOW_HOVER, height=40, font_size=12, parent=card)
+        btn_folder = NeoButton("Open Folder", bg_color=t.yellow, hover_color=t.yellow_hover, height=40, font_size=12, parent=card, theme=t)
         btn_folder.clicked.connect(open_folder)
         btn_grid.addWidget(btn_folder, 1, 0)
 
-        btn_close = NeoButton("Close", bg_color=COLOR_NEO_RED, hover_color=COLOR_NEO_RED_HOVER, height=40, font_size=12, parent=card)
+        btn_close = NeoButton("Close", bg_color=t.red, hover_color=t.red_hover, height=40, font_size=12, parent=card, theme=t)
         btn_close.clicked.connect(self.close)
         btn_grid.addWidget(btn_close, 1, 1)
 
@@ -1956,13 +2485,15 @@ class CompletionDialog(QDialog):
 class DeduplicatePDFDialog(QDialog):
     """Interactive modal window to review an entire PDF and truncate repetitive pages with Neo-Brutalist styling."""
 
-    def __init__(self, parent=None, default_pdf_path: str = ""):
+    def __init__(self, parent=None, default_pdf_path: str = "", theme: Optional[NeoTheme] = None):
         super().__init__(parent)
+        self.theme = theme or getattr(parent, "theme", None) or get_current_theme()
+        t = self.theme
         self.setWindowTitle("Review & Deduplicate PDF")
         self.resize(740, 620)
         self.setMinimumSize(600, 480)
         self.setModal(True)
-        self.setStyleSheet(f"QDialog {{ background-color: {COLOR_CANVAS_BG}; }}")
+        self.setStyleSheet(f"QDialog {{ background-color: {t.canvas_bg}; }}")
 
         self.cancel_event = threading.Event()
         self.is_processing = False
@@ -1993,6 +2524,7 @@ class DeduplicatePDFDialog(QDialog):
         event.accept()
 
     def _build_ui(self, default_pdf_path: str):
+        t = self.theme
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(18, 14, 18, 14)
 
@@ -2001,35 +2533,35 @@ class DeduplicatePDFDialog(QDialog):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("""
-            QScrollArea {
+        self.scroll.setStyleSheet(f"""
+            QScrollArea {{
                 background: transparent;
                 border: none;
-            }
-            QScrollBar:vertical {
-                border: 2px solid #000000;
-                background: #ffffff;
+            }}
+            QScrollBar:vertical {{
+                border: 2px solid {t.border};
+                background: {t.scrollbar_bg};
                 width: 14px;
                 margin: 0px;
                 border-radius: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #000000;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {t.scrollbar_handle};
                 min-height: 24px;
                 border-radius: 0px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #374151;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {t.scrollbar_hover};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
                 background: none;
-            }
-            QScrollBar:horizontal {
+            }}
+            QScrollBar:horizontal {{
                 height: 0px;
-            }
+            }}
         """)
         self.scroll.verticalScrollBar().setSingleStep(16)
 
@@ -2047,14 +2579,14 @@ class DeduplicatePDFDialog(QDialog):
 
         t_lbl = NeoLabel("REVIEW & TRUNCATE DUPLICATES ✦", header_frame)
         t_lbl.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        t_lbl.setStyleSheet("color: #000000; border: none;")
+        t_lbl.setStyleSheet(f"color: {t.text}; border: none;")
         h_layout.addWidget(t_lbl)
 
         pill = QFrame(header_frame)
         pill.setStyleSheet(f"""
             QFrame {{
-                background-color: {COLOR_NEO_YELLOW};
-                border: 2px solid #000000;
+                background-color: {t.yellow};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2071,7 +2603,7 @@ class DeduplicatePDFDialog(QDialog):
 
         desc_lbl = NeoLabel("Scans all pages, detects repetitive slides, and keeps only the first appearance alone.", container)
         desc_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        desc_lbl.setStyleSheet("color: #000000; border: none; padding-bottom: 2px;")
+        desc_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-bottom: 2px;")
         c_layout.addWidget(desc_lbl)
 
         # Card 1: Document Selection
@@ -2079,8 +2611,8 @@ class DeduplicatePDFDialog(QDialog):
         card_files.setObjectName("card_files")
         card_files.setStyleSheet(f"""
             QFrame#card_files {{
-                background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                background-color: {t.card_bg};
+                border: 2.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2088,11 +2620,11 @@ class DeduplicatePDFDialog(QDialog):
         cf_layout.setContentsMargins(0, 0, 0, 14)
         cf_layout.setSpacing(6)
 
-        cf_layout.addWidget(create_neo_card_header("[ 01 ] SELECT DOCUMENT", COLOR_NEO_YELLOW, card_files))
+        cf_layout.addWidget(create_neo_card_header("[ 01 ] SELECT DOCUMENT", t.yellow, card_files))
 
         # Input PDF row
         in_lbl = NeoLabel("Input PDF:", card_files)
-        in_lbl.setStyleSheet("padding-left: 16px; padding-top: 2px;")
+        in_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
         cf_layout.addWidget(in_lbl)
 
         in_row = QWidget(card_files)
@@ -2100,17 +2632,17 @@ class DeduplicatePDFDialog(QDialog):
         ir_layout.setContentsMargins(16, 0, 16, 6)
         ir_layout.setSpacing(8)
 
-        self.input_entry = NeoEntry("Path to PDF file...", height=36, parent=in_row)
+        self.input_entry = NeoEntry("Path to PDF file...", height=36, parent=in_row, theme=t)
         self.input_entry.set_paste_callback(self._on_input_entry_paste)
         self.input_entry.editingFinished.connect(self._on_input_entry_blur_or_change)
         ir_layout.addWidget(self.input_entry, stretch=1)
 
-        self.browse_in_btn = NeoButton("Browse...", bg_color=COLOR_NEO_YELLOW, hover_color=COLOR_NEO_YELLOW_HOVER, height=36, parent=in_row)
+        self.browse_in_btn = NeoButton("Browse...", bg_color=t.yellow, hover_color=t.yellow_hover, height=36, parent=in_row, theme=t)
         self.browse_in_btn.setFixedWidth(78)
         self.browse_in_btn.clicked.connect(self._on_browse_input)
         ir_layout.addWidget(self.browse_in_btn)
 
-        self.paste_in_btn = NeoButton("Paste", bg_color=COLOR_NEO_BLUE, hover_color=COLOR_NEO_BLUE_HOVER, height=36, parent=in_row)
+        self.paste_in_btn = NeoButton("Paste", bg_color=t.blue, hover_color=t.blue_hover, height=36, parent=in_row, theme=t)
         self.paste_in_btn.setFixedWidth(78)
         self.paste_in_btn.clicked.connect(self._on_paste_input)
         ir_layout.addWidget(self.paste_in_btn)
@@ -2119,7 +2651,7 @@ class DeduplicatePDFDialog(QDialog):
 
         # Output PDF row
         out_lbl = NeoLabel("Save Cleaned PDF to:", card_files)
-        out_lbl.setStyleSheet("padding-left: 16px; padding-top: 2px;")
+        out_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
         cf_layout.addWidget(out_lbl)
 
         out_row = QWidget(card_files)
@@ -2127,17 +2659,17 @@ class DeduplicatePDFDialog(QDialog):
         or_layout.setContentsMargins(16, 0, 16, 6)
         or_layout.setSpacing(8)
 
-        self.output_entry = NeoEntry("Path to save deduplicated PDF...", height=36, parent=out_row)
+        self.output_entry = NeoEntry("Path to save deduplicated PDF...", height=36, parent=out_row, theme=t)
         self.output_entry.set_paste_callback(self._on_output_entry_paste)
         self.output_entry.editingFinished.connect(self._on_output_entry_blur_or_change)
         or_layout.addWidget(self.output_entry, stretch=1)
 
-        self.browse_out_btn = NeoButton("Browse...", bg_color=COLOR_NEO_YELLOW, hover_color=COLOR_NEO_YELLOW_HOVER, height=36, parent=out_row)
+        self.browse_out_btn = NeoButton("Browse...", bg_color=t.yellow, hover_color=t.yellow_hover, height=36, parent=out_row, theme=t)
         self.browse_out_btn.setFixedWidth(78)
         self.browse_out_btn.clicked.connect(self._on_browse_output)
         or_layout.addWidget(self.browse_out_btn)
 
-        self.paste_out_btn = NeoButton("Paste", bg_color=COLOR_NEO_BLUE, hover_color=COLOR_NEO_BLUE_HOVER, height=36, parent=out_row)
+        self.paste_out_btn = NeoButton("Paste", bg_color=t.blue, hover_color=t.blue_hover, height=36, parent=out_row, theme=t)
         self.paste_out_btn.setFixedWidth(78)
         self.paste_out_btn.clicked.connect(self._on_paste_output)
         or_layout.addWidget(self.paste_out_btn)
@@ -2153,8 +2685,8 @@ class DeduplicatePDFDialog(QDialog):
         card_controls.setObjectName("card_controls")
         card_controls.setStyleSheet(f"""
             QFrame#card_controls {{
-                background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                background-color: {t.card_bg};
+                border: 2.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2162,7 +2694,7 @@ class DeduplicatePDFDialog(QDialog):
         cc_layout.setContentsMargins(0, 0, 0, 14)
         cc_layout.setSpacing(6)
 
-        cc_layout.addWidget(create_neo_card_header("[ 02 ] DETECTION SENSITIVITY", COLOR_NEO_BLUE, card_controls))
+        cc_layout.addWidget(create_neo_card_header("[ 02 ] DETECTION SENSITIVITY", t.blue, card_controls))
 
         thresh_top = QWidget(card_controls)
         tt_layout = QHBoxLayout(thresh_top)
@@ -2170,6 +2702,7 @@ class DeduplicatePDFDialog(QDialog):
 
         t_lbl = NeoLabel("Similarity Threshold:", thresh_top)
         t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text};")
         tt_layout.addWidget(t_lbl)
         tt_layout.addStretch()
 
@@ -2179,9 +2712,9 @@ class DeduplicatePDFDialog(QDialog):
         self.threshold_label.setFixedSize(62, 26)
         self.threshold_label.setStyleSheet(f"""
             QLabel {{
-                background-color: {COLOR_NEO_YELLOW};
+                background-color: {t.yellow};
                 color: #000000;
-                border: 2px solid #000000;
+                border: 2px solid {t.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
@@ -2192,7 +2725,7 @@ class DeduplicatePDFDialog(QDialog):
 
         sub_desc = NeoLabel("<b>Sensitivity for declaring pages identical</b> (lower merges near-duplicates, higher requires stricter visual match)", card_controls)
         sub_desc.setFont(QFont("Segoe UI", 10))
-        sub_desc.setStyleSheet("color: #000000; border: none; padding-left: 16px;")
+        sub_desc.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none; padding-left: 16px;")
         sub_desc.setWordWrap(True)
         cc_layout.addWidget(sub_desc)
 
@@ -2200,7 +2733,7 @@ class DeduplicatePDFDialog(QDialog):
         sl_layout = QHBoxLayout(slider_box)
         sl_layout.setContentsMargins(16, 0, 16, 4)
 
-        self.similarity_slider = NeoSlider(0.80, 0.99, 19, 0.94, parent=slider_box)
+        self.similarity_slider = NeoSlider(0.80, 0.99, 19, 0.94, parent=slider_box, theme=t)
         self.similarity_slider._command = lambda v: self.threshold_label.configure(text=f"{int(round(v * 100))}%")
         sl_layout.addWidget(self.similarity_slider)
         cc_layout.addWidget(slider_box)
@@ -2210,7 +2743,7 @@ class DeduplicatePDFDialog(QDialog):
         nr_layout = QHBoxLayout(narr_row)
         nr_layout.setContentsMargins(16, 2, 16, 6)
 
-        self.dialog_filter_narrator_switch = NeoSwitch("Filter Full-Human / Narrator Frames (Remove camera cuts to speaker)", narr_row)
+        self.dialog_filter_narrator_switch = NeoSwitch("Filter Full-Human / Narrator Frames (Remove camera cuts to speaker)", narr_row, theme=t)
         self.dialog_filter_narrator_switch.select()
         nr_layout.addWidget(self.dialog_filter_narrator_switch)
         cc_layout.addWidget(narr_row)
@@ -2221,11 +2754,11 @@ class DeduplicatePDFDialog(QDialog):
         bar_layout.setContentsMargins(16, 4, 16, 2)
         bar_layout.setSpacing(8)
 
-        self.run_btn = NeoButton("Review and Truncate Duplicates", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=40, font_size=12, parent=btn_action_row)
+        self.run_btn = NeoButton("Review and Truncate Duplicates", bg_color=t.green, hover_color=t.green_hover, height=40, font_size=12, parent=btn_action_row, theme=t)
         self.run_btn.clicked.connect(self._on_start_dedup)
         bar_layout.addWidget(self.run_btn, stretch=1)
 
-        self.cancel_btn = NeoButton("Cancel", bg_color=COLOR_NEO_RED, hover_color=COLOR_NEO_RED_HOVER, height=40, font_size=12, parent=btn_action_row)
+        self.cancel_btn = NeoButton("Cancel", bg_color=t.red, hover_color=t.red_hover, height=40, font_size=12, parent=btn_action_row, theme=t)
         self.cancel_btn.setFixedWidth(90)
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.clicked.connect(self._on_cancel_dedup)
@@ -2239,8 +2772,8 @@ class DeduplicatePDFDialog(QDialog):
         self.card_results.setObjectName("card_results")
         self.card_results.setStyleSheet(f"""
             QFrame#card_results {{
-                background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                background-color: {t.card_bg};
+                border: 2.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2248,15 +2781,15 @@ class DeduplicatePDFDialog(QDialog):
         cr_layout.setContentsMargins(0, 0, 0, 16)
         cr_layout.setSpacing(8)
 
-        cr_layout.addWidget(create_neo_card_header("[ 03 ] ANALYSIS PROGRESS & RESULTS", COLOR_NEO_LILAC, self.card_results))
+        cr_layout.addWidget(create_neo_card_header("[ 03 ] ANALYSIS PROGRESS & RESULTS", t.lilac, self.card_results))
 
         # Status Ticker Box
         self.dialog_status_box = QFrame(self.card_results)
         self.dialog_status_box.setObjectName("dialog_status_box")
         self.dialog_status_box.setStyleSheet(f"""
             QFrame#dialog_status_box {{
-                background-color: {COLOR_NEO_CREAM};
-                border: 2px solid #000000;
+                background-color: {t.status_bg};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2266,7 +2799,7 @@ class DeduplicatePDFDialog(QDialog):
         self.status_label = NeoLabel("Ready to review PDF", self.dialog_status_box)
         self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: #000000; border: none; background: transparent;")
+        self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
         dsb_layout.addWidget(self.status_label)
 
         status_row = QWidget(self.card_results)
@@ -2279,7 +2812,7 @@ class DeduplicatePDFDialog(QDialog):
         pb_box = QWidget(self.card_results)
         pbb_layout = QHBoxLayout(pb_box)
         pbb_layout.setContentsMargins(16, 0, 16, 4)
-        self.progress_bar = NeoProgressBar(pb_box)
+        self.progress_bar = NeoProgressBar(pb_box, theme=t)
         pbb_layout.addWidget(self.progress_bar)
         cr_layout.addWidget(pb_box)
 
@@ -2288,10 +2821,10 @@ class DeduplicatePDFDialog(QDialog):
         metrics_grid.setContentsMargins(16, 0, 16, 4)
         metrics_grid.setSpacing(6)
 
-        self.b_total, self.lbl_total = self._create_mini_badge(self.card_results, "TOTAL PAGES", "0", bg_color=COLOR_NEO_YELLOW)
-        self.b_kept, self.lbl_kept = self._create_mini_badge(self.card_results, "UNIQUE KEPT", "0", bg_color=COLOR_NEO_GREEN)
-        self.b_pruned, self.lbl_pruned = self._create_mini_badge(self.card_results, "DUPLICATES PRUNED", "0", bg_color=COLOR_NEO_ORANGE)
-        self.b_narrator, self.lbl_narrator = self._create_mini_badge(self.card_results, "NARRATOR CUTS", "0", bg_color=COLOR_NEO_PINK)
+        self.b_total, self.lbl_total = self._create_mini_badge(self.card_results, "TOTAL PAGES", "0", bg_color=t.yellow)
+        self.b_kept, self.lbl_kept = self._create_mini_badge(self.card_results, "UNIQUE KEPT", "0", bg_color=t.green)
+        self.b_pruned, self.lbl_pruned = self._create_mini_badge(self.card_results, "DUPLICATES PRUNED", "0", bg_color=t.orange)
+        self.b_narrator, self.lbl_narrator = self._create_mini_badge(self.card_results, "NARRATOR CUTS", "0", bg_color=t.pink)
 
         metrics_grid.addWidget(self.b_total, 0, 0)
         metrics_grid.addWidget(self.b_kept, 0, 1)
@@ -2301,7 +2834,7 @@ class DeduplicatePDFDialog(QDialog):
 
         # Details Log Box
         rep_lbl = NeoLabel("Repetitive Pages Found:", self.card_results)
-        rep_lbl.setStyleSheet("padding-left: 16px; padding-top: 2px;")
+        rep_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
         cr_layout.addWidget(rep_lbl)
 
         txt_box = QWidget(self.card_results)
@@ -2312,14 +2845,14 @@ class DeduplicatePDFDialog(QDialog):
         self.details_textbox.setFixedHeight(130)
         self.details_textbox.setReadOnly(True)
         self.details_textbox.setFont(QFont("Consolas", 9, QFont.Bold))
-        self.details_textbox.setStyleSheet("""
-            QTextEdit {
-                background-color: #ffffff;
-                color: #000000;
-                border: 2px solid #000000;
+        self.details_textbox.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {t.inner_bg};
+                color: {t.text};
+                border: 2px solid {t.border};
                 border-radius: 0px;
                 padding: 6px;
-            }
+            }}
         """)
         self.details_textbox.setText("Click 'Review and Truncate Duplicates' to scan the PDF...")
         tb_layout.addWidget(self.details_textbox)
@@ -2331,17 +2864,17 @@ class DeduplicatePDFDialog(QDialog):
         rbr_layout.setContentsMargins(16, 4, 16, 0)
         rbr_layout.setSpacing(8)
 
-        self.open_pdf_btn = NeoButton("Open Cleaned PDF", bg_color=COLOR_NEO_GREEN, hover_color=COLOR_NEO_GREEN_HOVER, height=38, font_size=12, parent=self.res_btn_row)
+        self.open_pdf_btn = NeoButton("Open Cleaned PDF", bg_color=t.green, hover_color=t.green_hover, height=38, font_size=12, parent=self.res_btn_row, theme=t)
         self.open_pdf_btn.setEnabled(False)
         self.open_pdf_btn.clicked.connect(self._on_open_pdf)
         rbr_layout.addWidget(self.open_pdf_btn, stretch=1)
 
-        self.open_folder_btn = NeoButton("Open Folder", bg_color=COLOR_NEO_BLUE, hover_color=COLOR_NEO_BLUE_HOVER, height=38, font_size=12, parent=self.res_btn_row)
+        self.open_folder_btn = NeoButton("Open Folder", bg_color=t.blue, hover_color=t.blue_hover, height=38, font_size=12, parent=self.res_btn_row, theme=t)
         self.open_folder_btn.setEnabled(False)
         self.open_folder_btn.clicked.connect(self._on_open_folder)
         rbr_layout.addWidget(self.open_folder_btn, stretch=1)
 
-        btn_close = NeoButton("Close", bg_color=COLOR_NEO_RED, hover_color=COLOR_NEO_RED_HOVER, height=38, font_size=12, parent=self.res_btn_row)
+        btn_close = NeoButton("Close", bg_color=t.red, hover_color=t.red_hover, height=38, font_size=12, parent=self.res_btn_row, theme=t)
         btn_close.setFixedWidth(90)
         btn_close.clicked.connect(self.close)
         rbr_layout.addWidget(btn_close)
@@ -2353,11 +2886,12 @@ class DeduplicatePDFDialog(QDialog):
         root_layout.addWidget(self.scroll)
 
     def _create_mini_badge(self, parent, title: str, val: str, bg_color: str = COLOR_NEO_YELLOW) -> Tuple[QFrame, NeoLabel]:
+        t = self.theme
         badge = QFrame(parent)
         badge.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg_color};
-                border: 2px solid #000000;
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2471,7 +3005,7 @@ class DeduplicatePDFDialog(QDialog):
         self.open_folder_btn.setEnabled(False)
 
         self.status_label.setText("Reading document pages...")
-        self.progress_bar.configure(progress_color=COLOR_NEO_GREEN)
+        self.progress_bar.configure(progress_color=self.theme.green)
         self.progress_bar.set(0.0)
         self.lbl_total.setText("0")
         self.lbl_kept.setText("0")
@@ -2524,7 +3058,7 @@ class DeduplicatePDFDialog(QDialog):
 
     def _on_cancel_dedup(self):
         self.cancel_event.set()
-        self.progress_bar.configure(progress_color="#ffffff")
+        self.progress_bar.configure(progress_color=self.theme.entry_bg)
         self.progress_bar.set(0.0)
         self.status_label.setText("Cancelling duplicate review...")
         self.cancel_btn.setEnabled(False)
@@ -2579,7 +3113,7 @@ class DeduplicatePDFDialog(QDialog):
         self.is_processing = False
         self.run_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
-        self.progress_bar.configure(progress_color="#ffffff")
+        self.progress_bar.configure(progress_color=self.theme.entry_bg)
         self.progress_bar.set(0.0)
         self.status_label.setText("Error occurred during review.")
         self.status_label.setStyleSheet(f"color: {COLOR_NEO_RED};")

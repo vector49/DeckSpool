@@ -383,6 +383,93 @@ class TestPySide6GUI(unittest.TestCase):
             if os.path.exists(temp_pdf):
                 os.remove(temp_pdf)
 
+    def test_theme_toggle_button_placement_and_initial_state(self):
+        """Verify sun/moon theme toggle button exists, is positioned to the left of DeDuplicate PDF button, and has correct icon."""
+        self.gui.show()
+        self.gui.update_idletasks()
+
+        self.assertIsNotNone(self.gui.theme_toggle_btn)
+        self.assertIsNotNone(self.gui.header_dedup_btn)
+
+        # Check layout order in header
+        header_layout = self.gui.header_frame.layout()
+        idx_toggle = header_layout.indexOf(self.gui.theme_toggle_btn)
+        idx_dedup = header_layout.indexOf(self.gui.header_dedup_btn)
+        self.assertLess(idx_toggle, idx_dedup, "Theme toggle button must be to the left of DeDuplicate PDF button in layout")
+
+        # Check visual x coordinate: theme toggle button is strictly to the left of DeDuplicate PDF button
+        pos_toggle = self.gui.theme_toggle_btn.mapTo(self.gui, self.gui.theme_toggle_btn.rect().topLeft())
+        pos_dedup = self.gui.header_dedup_btn.mapTo(self.gui, self.gui.header_dedup_btn.rect().topLeft())
+        self.assertLess(pos_toggle.x(), pos_dedup.x(), "Visual x position of theme toggle must be to the left of DeDuplicate PDF button")
+
+        # Check initial Light Mode state
+        self.assertFalse(self.gui.is_dark_mode())
+        self.assertEqual(self.gui.theme_toggle_btn.text(), "🌙")
+        self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Dark Theme")
+
+    def test_theme_toggle_switches_to_dark_and_back(self):
+        """Verify clicking the sun/moon button toggles between Light and Dark Neo-Brutalist themes."""
+        self.gui.show()
+        self.gui.update_idletasks()
+
+        # 1. Click toggle to switch to Dark Theme
+        self.gui.theme_toggle_btn.click()
+        self.gui.update_idletasks()
+
+        self.assertTrue(self.gui.is_dark_mode())
+        self.assertEqual(self.gui.theme_toggle_btn.text(), "☀️")
+        self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Light Theme")
+
+        # Verify dark mode color tokens are applied
+        self.assertIn("#121216", self.gui.styleSheet())
+        self.assertIn("#121216", self.gui.root_widget.styleSheet())
+
+        card1 = self.gui.findChild(object, "card_01")
+        self.assertIn("#1a1a24", card1.styleSheet())
+        self.assertIn("#ffffff", card1.styleSheet())
+
+        # Verify dark mode input entry styling
+        self.assertIn("#101014", self.gui.input_entry.styleSheet())
+        self.assertIn("#ffffff", self.gui.input_entry.styleSheet())
+
+        # 2. Click toggle again to switch back to Light Theme
+        self.gui.theme_toggle_btn.click()
+        self.gui.update_idletasks()
+
+        self.assertFalse(self.gui.is_dark_mode())
+        self.assertEqual(self.gui.theme_toggle_btn.text(), "🌙")
+        self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Dark Theme")
+
+        self.assertIn("#ede9f6", self.gui.styleSheet())
+        self.assertIn("#ede9f6", self.gui.root_widget.styleSheet())
+        self.assertIn("#ffffff", card1.styleSheet())
+        self.assertIn("#000000", card1.styleSheet())
+
+    def test_theme_applied_to_dialogs(self):
+        """Verify modal dialogs adopt the active theme."""
+        # Switch to dark theme
+        self.gui.apply_theme(self.gui.theme.__class__(
+            **{**self.gui.theme.__dict__, "name": "dark", "canvas_bg": "#121216", "card_bg": "#1a1a24", "border": "#ffffff"}
+        ))
+        from yt2pdf.gui import DARK_THEME
+        self.gui.apply_theme(DARK_THEME)
+        self.assertTrue(self.gui.is_dark_mode())
+
+        # DeduplicatePDFDialog
+        dialog = DeduplicatePDFDialog(self.gui, default_pdf_path="C:/dummy.pdf")
+        self.assertIn("#121216", dialog.styleSheet())
+        self.assertIn("#1a1a24", dialog.card_results.styleSheet())
+        self.assertIn("#ffffff", dialog.card_results.styleSheet())
+        dialog.destroy()
+
+        # CompletionDialog
+        comp_dialog = CompletionDialog(self.gui, "C:/dummy.pdf", slides_count=10, elapsed=30.0)
+        self.assertIn("#121216", comp_dialog.styleSheet())
+        comp_card = comp_dialog.findChild(object, "comp_card")
+        self.assertIn("#1a1a24", comp_card.styleSheet())
+        self.assertIn("#ffffff", comp_card.styleSheet())
+        comp_dialog.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()
