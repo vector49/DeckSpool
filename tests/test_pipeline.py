@@ -289,18 +289,18 @@ class TestYT2PDFPipeline(unittest.TestCase):
         # Presentation sequence with recurring Agenda and recurring Title
         s1 = make_slide(1, "Title Slide", 0.0)
         s2 = make_slide(2, "Agenda Slide", 10.0)
-        s3 = make_slide(3, "Topic 1 Content", 20.0)
+        s3 = make_slide(3, "Architecture Diagram Overview", 20.0)
         s4 = make_slide(4, "Agenda Slide", 30.0)       # Duplicate of s2
-        s5 = make_slide(5, "Topic 2 Content", 40.0)
+        s5 = make_slide(5, "Performance Benchmarks Report", 40.0)
         s6 = make_slide(6, "Title Slide", 50.0)        # Duplicate of s1
 
         all_slides = [s1, s2, s3, s4, s5, s6]
         kept_slides, dup_records = deduplicate_slides_list(all_slides, similarity_threshold=0.92)
 
-        # Expected: only s1, s2, s3, s5 kept
+        # Expected: only s1, s2, s3, s5 kept (4 unique slides, re-indexed 1..4)
         self.assertEqual(len(kept_slides), 4)
         kept_indices = [s.index for s in kept_slides]
-        self.assertEqual(kept_indices, [1, 2, 3, 5])
+        self.assertEqual(kept_indices, [1, 2, 3, 4])
 
         # Duplicates record should map slide 4 -> 2, slide 6 -> 1
         self.assertEqual(len(dup_records), 2)

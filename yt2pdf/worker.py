@@ -114,8 +114,20 @@ class ExtractionWorker(threading.Thread):
                     self._send(WorkerMessageType.CANCELLED, "Extraction was cancelled.")
                     return
 
-                cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame_idx)
-                ret, frame = cap.read()
+                # Fast sequential grab for typical step intervals; seek only for huge jumps
+                if current_frame_idx == 0:
+                    ret, frame = cap.read()
+                elif frame_step <= 120:
+                    grab_ok = True
+                    for _ in range(frame_step - 1):
+                        if not cap.grab():
+                            grab_ok = False
+                            break
+                    ret, frame = cap.read() if grab_ok else (False, None)
+                else:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame_idx)
+                    ret, frame = cap.read()
+
                 if not ret or frame is None:
                     break
 

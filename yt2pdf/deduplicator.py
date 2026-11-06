@@ -11,7 +11,7 @@ import imagehash
 from PIL import Image
 import pypdfium2
 
-from yt2pdf.detector import Slide, compute_opencv_ssim
+from yt2pdf.detector import Slide, compute_opencv_ssim, has_meaningful_structural_change
 from yt2pdf.human_detector import HumanNarratorDetector
 from yt2pdf.downloader import clean_file_path
 
@@ -27,10 +27,8 @@ class DeduplicationResult:
     unique_pages_count: int
     duplicates_removed_count: int
     narrator_pages_removed_count: int = 0
-    kept_indices: List[int] = field(default_factory=list)  # 0-based page indices
-    # Each entry: (duplicate_page_number_1based, original_page_number_1based, similarity_score)
+    kept_indices: List[int] = field(default_factory=list)
     duplicate_details: List[Tuple[int, int, float]] = field(default_factory=list)
-    # Each entry: (narrator_page_number_1based, reason_description)
     narrator_details: List[Tuple[int, str]] = field(default_factory=list)
 
 
@@ -41,23 +39,25 @@ def are_slides_duplicate(
     hash2: imagehash.ImageHash,
     similarity_threshold: float = 0.94
 ) -> Tuple[bool, float]:
-    """Determines if two slide frames are identical/duplicate representations."""
+    """Determines if two slide frames are identical/duplicate representations using
+    dHash, connected-component structural gating, and SSIM.
+    """
     # 1. Quick check with perceptual dHash
     dhash_dist = hash1 - hash2
-    if dhash_dist > 8:
+    if dhash_dist > 10:
         return False, 0.0
 
-    # 2. Check pixel difference to catch text modifications on uniform backgrounds
-    diff = cv2.absdiff(gray1, gray2)
-    significant_diff_count = np.count_nonzero(diff > 25)
-
-    # Even a single character or bullet point change alters > 100 pixels.
-    # Genuine duplicates (with slight video compression or antialiasing) have <= 60 pixels differing by > 25.
-    if significant_diff_count > 60:
-        return False, 0.0
-
-    # 3. Calculate SSIM
+    # 2. Compute SSIM
     ssim = compute_opencv_ssim(gray1, gray2)
+
+    # 3. Morphological connected-component check to ignore blinking cursors / watch timers
+    meaningful_diff = has_meaningful_structural_change(gray1, gray2)
+    if not meaningful_diff and ssim >= (similarity_threshold - 0.03):
+        return True, max(ssim, similarity_threshold)
+
+    if meaningful_diff:
+        return False, ssim
+
     if ssim >= similarity_threshold:
         return True, ssim
 
@@ -69,16 +69,7 @@ def deduplicate_slides_list(
     similarity_threshold: float = 0.92,
     filter_narrator_frames: bool = True
 ) -> Tuple[List[Slide], List[Tuple[int, int, float]]]:
-    """Reviews an in-memory list of Slide objects across the whole presentation.
-    
-    Finds any duplicate or recurring slides (even if separated by other slides)
-    and truncates the repetitive ones, keeping only the first appearance.
-    Also filters out any full-human narrator camera cuts.
-    
-    Returns:
-        Tuple of (unique_slides, duplicate_records)
-        where duplicate_records is a list of (dup_slide_idx, orig_slide_idx, similarity).
-    """
+    """Reviews an in-memory list of Slide objects across the whole presentation."""
     if not slides:
         return [], []
 
@@ -87,11 +78,10 @@ def deduplicate_slides_list(
     duplicate_records: List[Tuple[int, int, float]] = []
 
     for curr_slide in slides:
-        # Check if full-human narrator shot
         if human_detector is not None:
             is_narrator, reason = human_detector.is_narrator_frame(curr_slide.frame_high_res)
             if is_narrator:
-                logger.info(f"Slide #{curr_slide.index} is a full-human narrator cut: {reason}. Truncating.")
+                logger.info(f"Slide #{curr_slide.index} is a narrator/gallery cut: {reason}. Truncating.")
                 continue
 
         is_duplicate = False
@@ -121,6 +111,10 @@ def deduplicate_slides_list(
         else:
             kept_slides.append(curr_slide)
 
+    # Re-index kept slides sequentially
+    for new_idx, slide in enumerate(kept_slides, start=1):
+        slide.index = new_idx
+
     return kept_slides, duplicate_records
 
 
@@ -132,21 +126,7 @@ def deduplicate_pdf(
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
     cancel_event: Optional[threading.Event] = None
 ) -> DeduplicationResult:
-    """Reviews the entire PDF, identifies all duplicate/repetitive pages and
-    full-human narrator shots, truncating them to preserve only unique presentation slides.
-    
-    Args:
-        input_pdf_path: Path to the input PDF file.
-        output_pdf_path: Destination path for the deduplicated PDF. If None,
-                         appends '_dedup.pdf' to the input filename.
-        similarity_threshold: SSIM threshold (0.80 to 0.99) for matching pages.
-        filter_narrator_frames: Whether to detect and remove full-human narrator shots.
-        progress_callback: Optional callback receiving (current_page, total_pages, status_text).
-        cancel_event: Optional threading.Event to abort early.
-        
-    Returns:
-        DeduplicationResult object with statistics and duplicate details.
-    """
+    """Reviews an entire PDF, removing duplicate pages, narrator shots, and conference gallery screens."""
     input_pdf_path = clean_file_path(input_pdf_path)
     if output_pdf_path:
         output_pdf_path = clean_file_path(output_pdf_path)
@@ -167,7 +147,6 @@ def deduplicate_pdf(
 
     human_detector = HumanNarratorDetector() if filter_narrator_frames else None
     kept_indices: List[int] = []
-    # Tuples of (kept_index, 360p_gray_np, dhash)
     kept_fingerprints: List[Tuple[int, np.ndarray, imagehash.ImageHash]] = []
     duplicate_details: List[Tuple[int, int, float]] = []
     narrator_details: List[Tuple[int, str]] = []
@@ -181,32 +160,26 @@ def deduplicate_pdf(
             if progress_callback:
                 progress_callback(i + 1, total_pages, f"Analyzing page {i + 1} of {total_pages}...")
 
-            # Render page at low resolution (~360p height) for rapid fingerprinting
             page = src_pdf[i]
-            # scale=0.5 provides ample resolution for 360p-720p slide hashing
             pil_rendered = page.render(scale=0.5).to_pil()
 
-            # Check if this PDF page is a full-human / narrator shot
             if human_detector is not None:
                 bgr_rendered = cv2.cvtColor(np.array(pil_rendered), cv2.COLOR_RGB2BGR)
                 is_narrator, n_reason = human_detector.is_narrator_frame(bgr_rendered)
                 if is_narrator:
                     page_1based = i + 1
                     narrator_details.append((page_1based, n_reason))
-                    logger.info(f"Page {page_1based} is a full-human narrator frame ({n_reason}). Truncating from PDF.")
+                    logger.info(f"Page {page_1based} is a narrator/gallery frame ({n_reason}). Truncating from PDF.")
                     continue
 
-            # Downscale to 360p height for normalized SSIM
             target_h = 360
             w, h = pil_rendered.size
             target_w = max(1, int(w * (target_h / float(h))))
             pil_resized = pil_rendered.resize((target_w, target_h), Image.Resampling.BILINEAR)
 
-            # Grayscale numpy array
             gray = np.array(pil_resized.convert("L"))
             dhash = imagehash.dhash(pil_resized)
 
-            # Compare against all previously kept pages (in chronological order)
             is_dup = False
             matched_first_appearance = -1
             match_score = 0.0
@@ -233,7 +206,6 @@ def deduplicate_pdf(
                 kept_indices.append(i)
                 kept_fingerprints.append((i, gray, dhash))
 
-        # Build clean deduplicated PDF by importing only the kept pages
         out_dir = os.path.dirname(os.path.abspath(output_pdf_path))
         if out_dir and not os.path.exists(out_dir):
             os.makedirs(out_dir, exist_ok=True)
@@ -261,6 +233,6 @@ def deduplicate_pdf(
     logger.info(
         f"PDF Review Complete: {result.total_pages} total pages -> "
         f"{result.unique_pages_count} unique kept, {result.duplicates_removed_count} duplicate pages truncated, "
-        f"{result.narrator_pages_removed_count} narrator pages removed."
+        f"{result.narrator_pages_removed_count} narrator/gallery pages removed."
     )
     return result
