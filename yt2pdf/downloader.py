@@ -119,6 +119,7 @@ class VideoDownloader:
         ydl_opts = {
             "quiet": True,
             "no_warnings": True,
+            "noprogress": True,
             "skip_download": True,
             "extract_flat": False,
         }
@@ -174,6 +175,7 @@ class VideoDownloader:
             "outtmpl": outtmpl,
             "quiet": True,
             "no_warnings": True,
+            "noprogress": True,
             "progress_hooks": [hook],
             "nocheckcertificate": True,
         }

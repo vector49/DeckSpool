@@ -633,5 +633,43 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertFalse(console.isMinimized())
 
 
+    def test_stream_interceptor_binary_buffer_and_ytdlp_compatibility(self):
+        """Verify that sys.stdout.buffer and sys.stderr.buffer support binary writes and yt_dlp write_string."""
+        from yt_dlp.utils._utils import write_string
+        from yt2pdf.backend_console import backend_console_manager
+
+        # 1. Ensure buffer attributes exist and have write method
+        self.assertTrue(hasattr(sys.stdout, "buffer"), "sys.stdout must have buffer attribute")
+        self.assertTrue(hasattr(sys.stderr, "buffer"), "sys.stderr must have buffer attribute")
+        self.assertTrue(callable(sys.stdout.buffer.write), "sys.stdout.buffer.write must be callable")
+        self.assertTrue(callable(sys.stderr.buffer.write), "sys.stderr.buffer.write must be callable")
+
+        # 2. Write binary bytes to buffers
+        sys.stdout.buffer.write(b"Binary payload to stdout buffer\n")
+        sys.stderr.buffer.write(b"Binary payload to stderr buffer\n")
+        sys.stdout.buffer.flush()
+        sys.stderr.buffer.flush()
+
+        # 3. Simulate yt_dlp minicurses / write_string calls (the exact failure mode)
+        write_string("[download] 50.0% of 10.00MiB at 2.0MB/s ETA 00:05\n", sys.stderr)
+        write_string("[download] 100.0% of 10.00MiB at 2.0MB/s\n", sys.stdout)
+
+        # 4. Check stream protocol methods and properties
+        self.assertTrue(sys.stdout.writable())
+        self.assertFalse(sys.stdout.readable())
+        self.assertFalse(sys.stdout.seekable())
+        self.assertIsInstance(sys.stdout.encoding, str)
+        self.assertIsInstance(sys.stderr.encoding, str)
+        self.assertFalse(sys.stdout.closed)
+
+        # 5. Verify captured entries in session buffer
+        self.gui.update_idletasks()
+        entries = backend_console_manager.buffer.get_entries()
+        messages = [e.message for e in entries]
+        self.assertTrue(any("Binary payload to stdout buffer" in m for m in messages))
+        self.assertTrue(any("Binary payload to stderr buffer" in m for m in messages))
+        self.assertTrue(any("[download] 50.0%" in m for m in messages))
+
+
 if __name__ == "__main__":
     unittest.main()

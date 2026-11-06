@@ -114,27 +114,106 @@ class QtConsoleLogHandler(logging.Handler):
             self.handleError(record)
 
 
+class _BinaryStreamBuffer:
+    """Binary I/O buffer interface compatible with TextIO.buffer."""
+
+    def __init__(self, parent: "StdStreamInterceptor"):
+        self._parent = parent
+
+    def write(self, data) -> int:
+        if isinstance(data, (bytes, bytearray, memoryview)):
+            enc = getattr(self._parent, "encoding", "utf-8") or "utf-8"
+            text = bytes(data).decode(enc, errors="replace")
+        else:
+            text = str(data)
+        self._parent.write(text)
+        return len(data)
+
+    def flush(self):
+        self._parent.flush()
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return False
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+
 class StdStreamInterceptor:
     """Redirects stdout and stderr to capture terminal messages and forward them."""
 
-    def __init__(self, original_stream, stream_name: str, buffer: SessionLogBuffer, signaler: ConsoleSignaler):
+    def __init__(self, original_stream, stream_name: str, session_buffer: SessionLogBuffer, signaler: ConsoleSignaler):
         self.original_stream = original_stream
         self.stream_name = stream_name
-        self.buffer = buffer
+        self.session_buffer = session_buffer
         self.signaler = signaler
         self._line_buffer = ""
         self._lock = threading.Lock()
+        self.buffer = _BinaryStreamBuffer(self)
 
-    def write(self, text: str):
+    @property
+    def encoding(self) -> str:
+        return getattr(self.original_stream, "encoding", "utf-8") or "utf-8"
+
+    @property
+    def errors(self) -> str:
+        return getattr(self.original_stream, "errors", "replace") or "replace"
+
+    @property
+    def closed(self) -> bool:
+        return getattr(self.original_stream, "closed", False)
+
+    def isatty(self) -> bool:
+        if self.original_stream and hasattr(self.original_stream, "isatty"):
+            try:
+                return self.original_stream.isatty()
+            except Exception:
+                return False
+        return False
+
+    def fileno(self):
+        if self.original_stream and hasattr(self.original_stream, "fileno"):
+            return self.original_stream.fileno()
+        raise OSError("fileno not supported")
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return False
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+    def write(self, text: str) -> int:
+        if not text:
+            return 0
+
         if self.original_stream:
             try:
                 self.original_stream.write(text)
                 self.original_stream.flush()
+            except UnicodeEncodeError:
+                try:
+                    enc = getattr(self.original_stream, "encoding", "utf-8") or "utf-8"
+                    if hasattr(self.original_stream, "buffer"):
+                        self.original_stream.buffer.write(text.encode(enc, errors="replace"))
+                        self.original_stream.buffer.flush()
+                except Exception:
+                    pass
             except Exception:
                 pass
-
-        if not text:
-            return
 
         with self._lock:
             self._line_buffer += text
@@ -150,10 +229,26 @@ class StdStreamInterceptor:
                         message=line,
                         is_raw=True,
                     )
-                    self.buffer.add_entry(entry)
+                    self.session_buffer.add_entry(entry)
                     self.signaler.new_entry.emit(entry)
 
+        return len(text)
+
     def flush(self):
+        with self._lock:
+            if self._line_buffer.strip("\r\n "):
+                timestamp = time.strftime("%H:%M:%S")
+                entry = LogEntry(
+                    timestamp=timestamp,
+                    level=self.stream_name,
+                    source="sys",
+                    message=self._line_buffer.strip("\r"),
+                    is_raw=True,
+                )
+                self.session_buffer.add_entry(entry)
+                self.signaler.new_entry.emit(entry)
+            self._line_buffer = ""
+
         if self.original_stream:
             try:
                 self.original_stream.flush()
