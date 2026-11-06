@@ -534,12 +534,50 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertEqual(self.gui.interval_val_lbl.height(), 26)
 
         # 5. Fonts remain consistent across theme toggling
-        self.gui.toggle_theme()
+        self.gui.toggle_theme(animate=False)
         self.gui.update_idletasks()
         self.assertIn("Space Grotesk", self.gui.title_label.font().family())
         self.assertIn("Plus Jakarta Sans", self.gui.input_label.font().family())
         self.assertIn("Space Mono", self.gui.interval_val_lbl.font().family())
-        self.gui.toggle_theme()
+        self.gui.toggle_theme(animate=False)
+
+    def test_theme_smooth_transition(self):
+        """Verify smooth theme transition animates overlay with 0.5-0.7s duration and cleans up."""
+        self.gui.show()
+        self.gui.update_idletasks()
+
+        # Trigger smooth transition to Dark theme
+        self.gui.toggle_theme(animate=True)
+        self.assertTrue(self.gui.is_dark_mode(), "Theme state should update immediately underneath")
+        self.assertIsNotNone(self.gui._transition_overlay, "Overlay should be created for cross-fade")
+        self.assertTrue(self.gui._transition_overlay.isVisible(), "Overlay should be visible during animation")
+        self.assertIsNotNone(self.gui._theme_anim, "Animation should be created")
+        self.assertEqual(self.gui._theme_anim.duration(), 600, "Transition duration should be 600ms (0.6s)")
+
+        # Fast-forward animation to finish
+        self.gui._theme_anim.setCurrentTime(600)
+        self.gui.update_idletasks()
+        # The animation finish callback cleans up the overlay automatically
+        self.assertIsNone(self.gui._transition_overlay, "Overlay should be cleaned up after animation completes")
+
+        # Verify button icon updated to Sun icon in dark mode
+        self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Light Theme")
+
+    def test_minimal_sun_icon_loaded(self):
+        """Verify the new minimal sun icon exists and is properly loaded in dark mode."""
+        assets_dir = os.path.join(os.path.dirname(__file__), "..", "yt2pdf", "assets")
+        sun_icon_path = os.path.join(assets_dir, "sun_icon.png")
+        self.assertTrue(os.path.exists(sun_icon_path), "sun_icon.png should exist in assets")
+
+        # In dark mode, theme toggle button should have a valid icon
+        self.gui.apply_theme(self.gui.theme.__class__(
+            **{**self.gui.theme.__dict__, "name": "dark"}
+        ))
+        from yt2pdf.gui import DARK_THEME
+        self.gui.apply_theme(DARK_THEME)
+        self.gui._update_theme_toggle_icon()
+        icon = self.gui.theme_toggle_btn.icon()
+        self.assertFalse(icon.isNull(), "Theme toggle button should load valid icon for sun")
 
 
 if __name__ == "__main__":

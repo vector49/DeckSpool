@@ -32,8 +32,19 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QSizePolicy,
+    QGraphicsOpacityEffect,
 )
-from PySide6.QtCore import Qt, QTimer, QRect, QSize, Signal, QObject, QPointF
+from PySide6.QtCore import (
+    Qt,
+    QTimer,
+    QRect,
+    QSize,
+    Signal,
+    QObject,
+    QPointF,
+    QPropertyAnimation,
+    QEasingCurve,
+)
 from PySide6.QtGui import (
     QFont,
     QColor,
@@ -1104,6 +1115,9 @@ class YT2PDFApp(QMainWindow):
         self.last_generated_pdf: str = ""
         self._last_thumbnail_rgb: Optional[np.ndarray] = None
         self._completion_dialog: Optional[QDialog] = None
+        self._transition_overlay: Optional[QLabel] = None
+        self._opacity_effect: Optional[QGraphicsOpacityEffect] = None
+        self._theme_anim: Optional[QPropertyAnimation] = None
 
         # Build UI Hierarchy
         self._setup_root_container()
@@ -1127,12 +1141,31 @@ class YT2PDFApp(QMainWindow):
         """Safely stops timers and closes the window."""
         if hasattr(self, "queue_timer") and self.queue_timer:
             self.queue_timer.stop()
+        if hasattr(self, "_theme_anim") and self._theme_anim:
+            self._theme_anim.stop()
+        if hasattr(self, "_transition_overlay") and self._transition_overlay:
+            self._transition_overlay.hide()
+            self._transition_overlay.deleteLater()
+            self._transition_overlay = None
+            self._opacity_effect = None
         self.close()
 
     def closeEvent(self, event):
         if hasattr(self, "queue_timer") and self.queue_timer:
             self.queue_timer.stop()
+        if hasattr(self, "_theme_anim") and self._theme_anim:
+            self._theme_anim.stop()
+        if hasattr(self, "_transition_overlay") and self._transition_overlay:
+            self._transition_overlay.hide()
+            self._transition_overlay.deleteLater()
+            self._transition_overlay = None
+            self._opacity_effect = None
         event.accept()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_transition_overlay") and self._transition_overlay and hasattr(self, "root_widget"):
+            self._transition_overlay.setGeometry(self.root_widget.rect())
 
     def mainloop(self):
         """Starts Qt application event loop (Tkinter backward compatibility)."""
@@ -1199,7 +1232,7 @@ class YT2PDFApp(QMainWindow):
             theme=self.theme,
         )
         self.theme_toggle_btn.setFixedWidth(44)
-        self.theme_toggle_btn.clicked.connect(self.toggle_theme)
+        self.theme_toggle_btn.clicked.connect(lambda: self.toggle_theme(animate=True))
         self._update_theme_toggle_icon()
         h_layout.addWidget(self.theme_toggle_btn)
 
@@ -2212,12 +2245,77 @@ class YT2PDFApp(QMainWindow):
 
     # ---------------- Theme Management ----------------
 
-    def toggle_theme(self):
-        """Switches between Light and Dark themes."""
-        if self.theme.name == "light":
-            self.apply_theme(DARK_THEME)
+    def toggle_theme(self, *args, animate: bool = True, **kwargs):
+        """Switches between Light and Dark themes with an optional smooth cross-fade animation."""
+        target_theme = DARK_THEME if self.theme.name == "light" else LIGHT_THEME
+        if animate and self.isVisible() and hasattr(self, "root_widget"):
+            self.transition_to_theme(target_theme, duration_ms=600)
         else:
-            self.apply_theme(LIGHT_THEME)
+            self.apply_theme(target_theme)
+
+    def transition_to_theme(self, target_theme: NeoTheme, duration_ms: int = 600):
+        """Smoothly transitions the entire UI to a new theme over 0.5-0.7s using snapshot cross-fade."""
+        # 1. Clean up any existing animation/overlay
+        if hasattr(self, "_theme_anim") and self._theme_anim and self._theme_anim.state() == QPropertyAnimation.Running:
+            self._theme_anim.stop()
+        if hasattr(self, "_transition_overlay") and self._transition_overlay:
+            self._transition_overlay.hide()
+            self._transition_overlay.deleteLater()
+            self._transition_overlay = None
+            self._opacity_effect = None
+
+        # Guard: if window or root widget is not rendered/visible or has invalid geometry
+        if (
+            not self.isVisible()
+            or not hasattr(self, "root_widget")
+            or self.root_widget.width() <= 10
+            or self.root_widget.height() <= 10
+        ):
+            self.apply_theme(target_theme)
+            return
+
+        # 2. Capture a high-res snapshot of the current root widget
+        pixmap = self.root_widget.grab()
+        if pixmap.isNull():
+            self.apply_theme(target_theme)
+            return
+
+        # 3. Create a seamless overlay with the old snapshot on top
+        overlay = QLabel(self.root_widget)
+        overlay.setPixmap(pixmap)
+        overlay.setGeometry(self.root_widget.rect())
+        overlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        overlay.show()
+        overlay.raise_()
+        self._transition_overlay = overlay
+
+        # 4. Attach opacity effect to overlay
+        effect = QGraphicsOpacityEffect(overlay)
+        effect.setOpacity(1.0)
+        overlay.setGraphicsEffect(effect)
+        self._opacity_effect = effect
+
+        # 5. Apply the target theme to underlying widgets immediately
+        self.apply_theme(target_theme)
+
+        # 6. Smoothly animate opacity from 1.0 down to 0.0 over 0.5-0.7s
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(duration_ms)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.InOutCubic)
+
+        def _cleanup():
+            if hasattr(self, "_transition_overlay") and self._transition_overlay:
+                self._transition_overlay.hide()
+                self._transition_overlay.deleteLater()
+                self._transition_overlay = None
+                self._opacity_effect = None
+            self._theme_anim = None
+
+        anim.finished.connect(_cleanup)
+        self._theme_anim = anim
+        anim.start()
 
     def is_dark_mode(self) -> bool:
         """Returns True if the current theme is Dark Theme."""
