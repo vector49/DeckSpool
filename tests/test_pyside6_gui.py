@@ -97,8 +97,9 @@ class TestPySide6GUI(unittest.TestCase):
         pos_yt = self.gui.source_segmented.mapTo(card, btn_yt.geometry().topLeft())
         pos_local = self.gui.source_segmented.mapTo(card, btn_local.geometry().topLeft())
 
-        card_inner_left = 3  # card border width
-        card_inner_right = card.width() - 3
+        card_border = int(round(self.gui.theme.border_width))
+        card_inner_left = card_border  # card border width
+        card_inner_right = card.width() - card_border
 
         left_gap = pos_yt.x() - card_inner_left
         center_gap = pos_local.x() - (pos_yt.x() + btn_yt.width())
@@ -176,8 +177,9 @@ class TestPySide6GUI(unittest.TestCase):
         self.gui.update_idletasks()
         card3 = self.gui.findChild(object, "card_03")
         pos_in_card = self.gui.pip_mode_frame.mapTo(card3, self.gui.pip_mode_frame.rect().topLeft())
-        card3_inner_left = 3
-        card3_inner_right = card3.width() - 3
+        card_border = int(round(self.gui.theme.border_width))
+        card3_inner_left = card_border
+        card3_inner_right = card3.width() - card_border
         left_gap = pos_in_card.x() - card3_inner_left
         right_gap = card3_inner_right - (pos_in_card.x() + self.gui.pip_mode_frame.width())
         self.assertEqual(left_gap, 16)
@@ -384,7 +386,7 @@ class TestPySide6GUI(unittest.TestCase):
                 os.remove(temp_pdf)
 
     def test_theme_toggle_button_placement_and_initial_state(self):
-        """Verify sun/moon theme toggle button exists, is positioned to the left of DeDuplicate PDF button, and has correct icon."""
+        """Verify sun/moon theme toggle button exists, is positioned to the left of DeDuplicate PDF button, and has custom Neo-Brutalist icon."""
         self.gui.show()
         self.gui.update_idletasks()
 
@@ -404,11 +406,11 @@ class TestPySide6GUI(unittest.TestCase):
 
         # Check initial Light Mode state
         self.assertFalse(self.gui.is_dark_mode())
-        self.assertEqual(self.gui.theme_toggle_btn.text(), "🌙")
+        self.assertFalse(self.gui.theme_toggle_btn.icon().isNull(), "Theme toggle button should load the moon icon")
         self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Dark Theme")
 
     def test_theme_toggle_switches_to_dark_and_back(self):
-        """Verify clicking the sun/moon button toggles between Light and Dark Neo-Brutalist themes."""
+        """Verify clicking the sun/moon button toggles between Light and Dark Neo-Brutalist themes and updates icons."""
         self.gui.show()
         self.gui.update_idletasks()
 
@@ -417,7 +419,7 @@ class TestPySide6GUI(unittest.TestCase):
         self.gui.update_idletasks()
 
         self.assertTrue(self.gui.is_dark_mode())
-        self.assertEqual(self.gui.theme_toggle_btn.text(), "☀️")
+        self.assertFalse(self.gui.theme_toggle_btn.icon().isNull(), "Theme toggle button should load the sun icon in dark mode")
         self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Light Theme")
 
         # Verify dark mode color tokens are applied
@@ -437,13 +439,44 @@ class TestPySide6GUI(unittest.TestCase):
         self.gui.update_idletasks()
 
         self.assertFalse(self.gui.is_dark_mode())
-        self.assertEqual(self.gui.theme_toggle_btn.text(), "🌙")
+        self.assertFalse(self.gui.theme_toggle_btn.icon().isNull(), "Theme toggle button should load the moon icon in light mode")
         self.assertEqual(self.gui.theme_toggle_btn.toolTip(), "Switch to Dark Theme")
 
         self.assertIn("#ede9f6", self.gui.styleSheet())
         self.assertIn("#ede9f6", self.gui.root_widget.styleSheet())
         self.assertIn("#ffffff", card1.styleSheet())
         self.assertIn("#000000", card1.styleSheet())
+
+    def test_scrollbar_and_border_hierarchy(self):
+        """Verify slim pastel scrollbar and border hierarchy (outer 2px vs inner 1.5px)."""
+        self.gui.show()
+        self.gui.update_idletasks()
+
+        # 1. Check Scrollbar in Light Mode
+        sb_ss = self.gui.scroll_area.styleSheet()
+        self.assertIn("#c084fc", sb_ss, "Scrollbar handle should use pastel lilac color")
+        self.assertIn("width: 12px", sb_ss, "Scrollbar should be a slim 12px carrier")
+        self.assertIn("margin: 2px 2px 2px 2px", sb_ss, "Scrollbar handle should be equally spaced inside carrier")
+
+        # 2. Check Border Hierarchy in Light Mode
+        card2 = self.gui.findChild(object, "card_02")
+        self.assertIn("border: 2px solid", card2.styleSheet(), "Outer card should have 2px border")
+        self.assertIn("border: 1.5px solid", self.gui.interval_val_lbl.styleSheet(), "Inner value badge should have 1.5px border")
+
+        # 3. Toggle to Dark Mode and Verify
+        self.gui.toggle_theme()
+        self.gui.update_idletasks()
+
+        sb_ss_dark = self.gui.scroll_area.styleSheet()
+        self.assertIn("#c084fc", sb_ss_dark, "Scrollbar handle should remain pastel in dark mode")
+        self.assertIn("#1a1a24", sb_ss_dark, "Scrollbar carrier background should be dark in dark mode")
+        self.assertIn("border: 1.5px solid #ffffff", sb_ss_dark, "Scrollbar carrier border should be white in dark mode")
+
+        self.assertIn("border: 2px solid #ffffff", card2.styleSheet(), "Outer card should have 2px white border in dark mode")
+        self.assertIn("border: 1.5px solid #ffffff", self.gui.interval_val_lbl.styleSheet(), "Inner badge should have 1.5px white border in dark mode")
+
+        # Switch back to light
+        self.gui.toggle_theme()
 
     def test_theme_applied_to_dialogs(self):
         """Verify modal dialogs adopt the active theme."""

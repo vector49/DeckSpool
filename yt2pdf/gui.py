@@ -42,6 +42,7 @@ from PySide6.QtGui import (
     QPainter,
     QImage,
     QPixmap,
+    QIcon,
     QKeySequence,
 )
 
@@ -73,56 +74,57 @@ class NeoTheme:
     inner_bg: str
     border: str
     border_muted: str
-    border_width: float
-    text: str
-    text_dim: str
-    text_bright: str
-    status_bg: str
+    border_width: float = 2.0
+    border_inner_width: float = 1.5
+    text: str = "#000000"
+    text_dim: str = "#4b5563"
+    text_bright: str = "#000000"
+    status_bg: str = "#fffbeb"
 
     # Vibrant Neo-Brutalist Accents
-    yellow: str
-    yellow_hover: str
-    green: str
-    green_hover: str
-    blue: str
-    blue_hover: str
-    pink: str
-    pink_hover: str
-    lilac: str
-    lilac_hover: str
-    red: str
-    red_hover: str
-    orange: str
-    cream: str
+    yellow: str = "#ffd166"
+    yellow_hover: str = "#ffc72c"
+    green: str = "#4ade80"
+    green_hover: str = "#22c55e"
+    blue: str = "#7dd3fc"
+    blue_hover: str = "#38bdf8"
+    pink: str = "#f472b6"
+    pink_hover: str = "#ec4899"
+    lilac: str = "#c084fc"
+    lilac_hover: str = "#a855f7"
+    red: str = "#f87171"
+    red_hover: str = "#ef4444"
+    orange: str = "#fed7aa"
+    cream: str = "#fffbeb"
 
-    track_lilac: str
-    progress_purple: str
+    track_lilac: str = "#d8b4fe"
+    progress_purple: str = "#a855f7"
 
     # Component-Specific Styles
-    slider_groove: str
-    slider_progress: str
-    slider_handle: str
-    slider_handle_border: str
-    slider_handle_hover: str
-    switch_track_off: str
-    switch_thumb: str
-    scrollbar_bg: str
-    scrollbar_handle: str
-    scrollbar_hover: str
-    entry_bg: str
-    entry_fg: str
-    entry_border: str
-    entry_focus_border: str
-    entry_disabled_bg: str
-    entry_disabled_fg: str
-    entry_disabled_border: str
-    unselected_btn_bg: str
-    unselected_btn_fg: str
-    unselected_btn_hover: str
-    unselected_btn_pressed: str
-    btn_disabled_bg: str
-    btn_disabled_fg: str
-    btn_disabled_border: str
+    slider_groove: str = "#d8b4fe"
+    slider_progress: str = "#a855f7"
+    slider_handle: str = "#ffffff"
+    slider_handle_border: str = "#000000"
+    slider_handle_hover: str = "#f3e8ff"
+    switch_track_off: str = "#e5e7eb"
+    switch_thumb: str = "#000000"
+    scrollbar_bg: str = "#ffffff"
+    scrollbar_handle: str = "#c084fc"
+    scrollbar_hover: str = "#a855f7"
+    entry_bg: str = "#ffffff"
+    entry_fg: str = "#000000"
+    entry_border: str = "#000000"
+    entry_focus_border: str = "#000000"
+    entry_disabled_bg: str = "#f9fafb"
+    entry_disabled_fg: str = "#9ca3af"
+    entry_disabled_border: str = "#d1d5db"
+    unselected_btn_bg: str = "#e5e7eb"
+    unselected_btn_fg: str = "#4b5563"
+    unselected_btn_hover: str = "#d1d5db"
+    unselected_btn_pressed: str = "#9ca3af"
+    btn_disabled_bg: str = "#e5e7eb"
+    btn_disabled_fg: str = "#6b7280"
+    btn_disabled_border: str = "#9ca3af"
 
 
 # Signature Light Neo-Brutalist Theme
@@ -135,7 +137,8 @@ LIGHT_THEME = NeoTheme(
     inner_bg="#ffffff",
     border="#000000",
     border_muted="#d1d5db",
-    border_width=2.5,
+    border_width=2.0,
+    border_inner_width=1.5,
     text="#000000",
     text_dim="#4b5563",
     text_bright="#000000",
@@ -164,8 +167,8 @@ LIGHT_THEME = NeoTheme(
     switch_track_off="#e5e7eb",
     switch_thumb="#000000",
     scrollbar_bg="#ffffff",
-    scrollbar_handle="#000000",
-    scrollbar_hover="#374151",
+    scrollbar_handle="#c084fc",
+    scrollbar_hover="#a855f7",
     entry_bg="#ffffff",
     entry_fg="#000000",
     entry_border="#000000",
@@ -192,7 +195,8 @@ DARK_THEME = NeoTheme(
     inner_bg="#101014",
     border="#ffffff",
     border_muted="#3f3f46",
-    border_width=2.5,
+    border_width=2.0,
+    border_inner_width=1.5,
     text="#ffffff",
     text_dim="#9ca3af",
     text_bright="#ffffff",
@@ -220,9 +224,9 @@ DARK_THEME = NeoTheme(
     slider_handle_hover="#f3e8ff",
     switch_track_off="#27272a",
     switch_thumb="#ffffff",
-    scrollbar_bg="#121216",
-    scrollbar_handle="#ffffff",
-    scrollbar_hover="#e4e4e7",
+    scrollbar_bg="#1a1a24",
+    scrollbar_handle="#c084fc",
+    scrollbar_hover="#d8b4fe",
     entry_bg="#101014",
     entry_fg="#ffffff",
     entry_border="#ffffff",
@@ -360,30 +364,34 @@ class NeoButton(QPushButton):
         dis_bg = theme.btn_disabled_bg
         dis_fg = theme.btn_disabled_fg
         dis_border = theme.btn_disabled_border
+        pad_top = 4 if self.text() else 0
+        pad_side = 12 if self.text() else 0
+        press_top = 6 if self.text() else 1
+        press_side = 14 if self.text() else 1
 
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {self._bg_color};
                 color: {self._text_color};
-                border: 2px solid {border_col};
+                border: 1.5px solid {border_col};
                 border-radius: {self._corner_radius}px;
                 font-family: 'Segoe UI', 'Segoe UI Emoji', sans-serif;
                 font-size: {self._font_size}px;
                 font-weight: bold;
-                padding: 4px 12px;
+                padding: {pad_top}px {pad_side}px;
             }}
             QPushButton:hover {{
                 background-color: {self._hover_color};
             }}
             QPushButton:pressed {{
                 background-color: {self._hover_color};
-                padding-top: 6px;
-                padding-left: 14px;
+                padding-top: {press_top}px;
+                padding-left: {press_side}px;
             }}
             QPushButton:disabled {{
                 background-color: {dis_bg};
                 color: {dis_fg};
-                border: 2px solid {dis_border};
+                border: 1.5px solid {dis_border};
             }}
         """)
 
@@ -428,7 +436,7 @@ class NeoEntry(QLineEdit):
             QLineEdit {{
                 background-color: {theme.entry_bg};
                 color: {theme.entry_fg};
-                border: 2px solid {theme.entry_border};
+                border: 1.5px solid {theme.entry_border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
@@ -436,12 +444,12 @@ class NeoEntry(QLineEdit):
                 padding: 6px 10px;
             }}
             QLineEdit:focus {{
-                border: 2.5px solid {theme.entry_focus_border};
+                border: 2px solid {theme.entry_focus_border};
             }}
             QLineEdit:disabled {{
                 background-color: {theme.entry_disabled_bg};
                 color: {theme.entry_disabled_fg};
-                border: 2px solid {theme.entry_disabled_border};
+                border: 1.5px solid {theme.entry_disabled_border};
             }}
         """)
 
@@ -610,14 +618,14 @@ class NeoSlider(QSlider):
                 height: 26px;
             }}
             QSlider::groove:horizontal {{
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 height: 10px;
                 background: {theme.slider_groove};
                 border-radius: 0px;
             }}
             QSlider::sub-page:horizontal {{
                 background: {theme.slider_progress};
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 height: 10px;
                 border-radius: 0px;
             }}
@@ -682,7 +690,7 @@ class NeoProgressBar(QProgressBar):
         theme = self._theme
         self.setStyleSheet(f"""
             QProgressBar {{
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 border-radius: 0px;
                 background-color: {theme.entry_bg};
                 height: 12px;
@@ -757,7 +765,7 @@ class NeoStandaloneButtonGroup(QWidget):
                     QPushButton {{
                         background-color: {theme.yellow};
                         color: #000000;
-                        border: 2px solid {theme.border};
+                        border: 1.5px solid {theme.border};
                         border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
@@ -775,7 +783,7 @@ class NeoStandaloneButtonGroup(QWidget):
                     QPushButton:disabled {{
                         background-color: {theme.btn_disabled_bg};
                         color: {theme.btn_disabled_fg};
-                        border-color: {theme.btn_disabled_border};
+                        border: 1.5px solid {theme.btn_disabled_border};
                     }}
                 """)
             else:
@@ -783,7 +791,7 @@ class NeoStandaloneButtonGroup(QWidget):
                     QPushButton {{
                         background-color: {theme.unselected_btn_bg};
                         color: {theme.unselected_btn_fg};
-                        border: 2px solid {theme.border};
+                        border: 1.5px solid {theme.border};
                         border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-size: 12px;
@@ -854,7 +862,7 @@ class NeoComboBox(QComboBox):
             QComboBox {{
                 background-color: {theme.entry_bg};
                 color: {theme.text};
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-size: 12px;
@@ -865,19 +873,19 @@ class NeoComboBox(QComboBox):
             QComboBox:disabled {{
                 background-color: {theme.entry_disabled_bg};
                 color: {theme.entry_disabled_fg};
-                border: 2px solid {theme.entry_disabled_border};
+                border: 1.5px solid {theme.entry_disabled_border};
             }}
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: 28px;
-                border-left: 2px solid {theme.border};
+                border-left: 1.5px solid {theme.border};
                 background-color: {theme.yellow};
                 border-radius: 0px;
             }}
             QComboBox::drop-down:disabled {{
                 background-color: {theme.btn_disabled_bg};
-                border-left: 2px solid {theme.entry_disabled_border};
+                border-left: 1.5px solid {theme.entry_disabled_border};
             }}
             QComboBox::down-arrow {{
                 image: none;
@@ -887,7 +895,7 @@ class NeoComboBox(QComboBox):
             QComboBox QAbstractItemView {{
                 background-color: {theme.card_bg};
                 color: {theme.text};
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 border-radius: 0px;
                 selection-background-color: {theme.yellow};
                 selection-color: #000000;
@@ -1026,7 +1034,7 @@ class NeoCardHeader(QWidget):
         self.tag.setStyleSheet(f"""
             QFrame {{
                 background-color: {self._badge_color};
-                border: 2px solid {theme.border};
+                border: 1.5px solid {theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1139,7 +1147,7 @@ class YT2PDFApp(QMainWindow):
         self.sub_pill.setStyleSheet(f"""
             QFrame {{
                 background-color: {self.theme.yellow};
-                border: 2px solid {self.theme.border};
+                border: 1.5px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1155,7 +1163,7 @@ class YT2PDFApp(QMainWindow):
 
         # Sun / Moon Theme Toggle Button (to the left of DeDuplicate PDF button)
         self.theme_toggle_btn = NeoButton(
-            "🌙",
+            "",
             bg_color=self.theme.yellow,
             hover_color=self.theme.yellow_hover,
             height=34,
@@ -1164,8 +1172,8 @@ class YT2PDFApp(QMainWindow):
             theme=self.theme,
         )
         self.theme_toggle_btn.setFixedWidth(44)
-        self.theme_toggle_btn.setToolTip("Switch to Dark Theme")
         self.theme_toggle_btn.clicked.connect(self.toggle_theme)
+        self._update_theme_toggle_icon()
         h_layout.addWidget(self.theme_toggle_btn)
 
         # Deduplicate PDF button (Lilac)
@@ -1196,6 +1204,29 @@ class YT2PDFApp(QMainWindow):
 
         self.root_layout.addWidget(self.header_frame)
 
+    def _update_theme_toggle_icon(self):
+        """Updates theme toggle button icon using custom Neo-Brutalist Sun/Moon graphics."""
+        if not hasattr(self, "theme_toggle_btn"):
+            return
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        if self.is_dark_mode():
+            icon_path = os.path.join(assets_dir, "sun_icon.png")
+            fallback_text = "☀️"
+            tooltip = "Switch to Light Theme"
+        else:
+            icon_path = os.path.join(assets_dir, "moon_icon.png")
+            fallback_text = "🌙"
+            tooltip = "Switch to Dark Theme"
+
+        if os.path.exists(icon_path):
+            self.theme_toggle_btn.setIcon(QIcon(icon_path))
+            self.theme_toggle_btn.setIconSize(QSize(22, 22))
+            self.theme_toggle_btn.setText("")
+        else:
+            self.theme_toggle_btn.setIcon(QIcon())
+            self.theme_toggle_btn.setText(fallback_text)
+        self.theme_toggle_btn.setToolTip(tooltip)
+
     def _create_main_content(self):
         """Split content layout: Left scrollable configuration, Right live dashboard & preview."""
         self.content_splitter = QWidget(self.root_widget)
@@ -1208,35 +1239,38 @@ class YT2PDFApp(QMainWindow):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
+        t = self.theme
+        self.scroll_area.setStyleSheet(f"""
+            QScrollArea {{
                 background: transparent;
                 border: none;
-            }
-            QScrollBar:vertical {
-                border: 2px solid #000000;
-                background: #ffffff;
-                width: 14px;
-                margin: 0px;
+            }}
+            QScrollBar:vertical {{
+                border: 1.5px solid {t.border};
+                background: {t.scrollbar_bg};
+                width: 12px;
+                margin: 0px 0px 0px 0px;
                 border-radius: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #000000;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {t.scrollbar_handle};
                 min-height: 24px;
+                margin: 2px 2px 2px 2px;
+                border: 1px solid {t.border};
                 border-radius: 0px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #374151;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {t.scrollbar_hover};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
                 background: none;
-            }
-            QScrollBar:horizontal {
+            }}
+            QScrollBar:horizontal {{
                 height: 0px;
-            }
+            }}
         """)
         self.scroll_area.verticalScrollBar().setSingleStep(16)
 
@@ -1261,7 +1295,7 @@ class YT2PDFApp(QMainWindow):
         self.right_col.setStyleSheet(f"""
             QFrame#right_col_card {{
                 background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                border: 2px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1277,7 +1311,7 @@ class YT2PDFApp(QMainWindow):
         card.setStyleSheet(f"""
             QFrame#card_01 {{
                 background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                border: 2px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1357,7 +1391,7 @@ class YT2PDFApp(QMainWindow):
         card.setStyleSheet(f"""
             QFrame#card_02 {{
                 background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                border: 2px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1451,7 +1485,7 @@ class YT2PDFApp(QMainWindow):
             QLabel {{
                 background-color: {t.yellow};
                 color: #000000;
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
@@ -1487,7 +1521,7 @@ class YT2PDFApp(QMainWindow):
         card.setStyleSheet(f"""
             QFrame#card_03 {{
                 background-color: {COLOR_CARD_BG};
-                border: 2.5px solid #000000;
+                border: 2px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1513,7 +1547,7 @@ class YT2PDFApp(QMainWindow):
         self.pip_mode_frame.setStyleSheet(f"""
             QFrame#pip_frame {{
                 background-color: {COLOR_CARD_BG_ALT};
-                border: 2px solid #000000;
+                border: 1.5px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1595,7 +1629,7 @@ class YT2PDFApp(QMainWindow):
         self.status_box.setStyleSheet(f"""
             QFrame#status_box {{
                 background-color: {COLOR_NEO_CREAM};
-                border: 2px solid #000000;
+                border: 1.5px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1637,10 +1671,10 @@ class YT2PDFApp(QMainWindow):
 
         self.preview_frame = QFrame(self.right_col)
         self.preview_frame.setObjectName("preview_frame")
-        self.preview_frame.setStyleSheet("""
+        self.preview_frame.setStyleSheet(f"""
             QFrame#preview_frame {{
                 background-color: #ffffff;
-                border: 2px solid #000000;
+                border: 1.5px solid {self.theme.border};
                 border-radius: 0px;
             }}
         """)
@@ -1677,7 +1711,7 @@ class YT2PDFApp(QMainWindow):
         badge.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg_color};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -1909,7 +1943,7 @@ class YT2PDFApp(QMainWindow):
             self.pip_mode_frame.setStyleSheet(f"""
                 QFrame#pip_frame {{
                     background-color: {t.card_bg_alt};
-                    border: 2px solid {t.border};
+                    border: 1.5px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
@@ -1930,7 +1964,7 @@ class YT2PDFApp(QMainWindow):
             self.pip_mode_frame.setStyleSheet(f"""
                 QFrame#pip_frame {{
                     background-color: {t.card_bg_inactive};
-                    border: 2px solid {t.border_muted};
+                    border: 1.5px solid {t.border_muted};
                     border-radius: 0px;
                 }}
             """)
@@ -2174,7 +2208,7 @@ class YT2PDFApp(QMainWindow):
             self.sub_pill.setStyleSheet(f"""
                 QFrame {{
                     background-color: {t.yellow};
-                    border: 2px solid {t.border};
+                    border: 1.5px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
@@ -2183,12 +2217,7 @@ class YT2PDFApp(QMainWindow):
 
         # Theme toggle button
         if hasattr(self, "theme_toggle_btn"):
-            if t.name == "dark":
-                self.theme_toggle_btn.setText("☀️")
-                self.theme_toggle_btn.setToolTip("Switch to Light Theme")
-            else:
-                self.theme_toggle_btn.setText("🌙")
-                self.theme_toggle_btn.setToolTip("Switch to Dark Theme")
+            self._update_theme_toggle_icon()
             self.theme_toggle_btn.set_colors(t.yellow, t.yellow_hover)
             self.theme_toggle_btn.set_theme(t)
 
@@ -2207,15 +2236,17 @@ class YT2PDFApp(QMainWindow):
                     border: none;
                 }}
                 QScrollBar:vertical {{
-                    border: 2px solid {t.border};
+                    border: 1.5px solid {t.border};
                     background: {t.scrollbar_bg};
-                    width: 14px;
-                    margin: 0px;
+                    width: 12px;
+                    margin: 0px 0px 0px 0px;
                     border-radius: 0px;
                 }}
                 QScrollBar::handle:vertical {{
                     background: {t.scrollbar_handle};
                     min-height: 24px;
+                    margin: 2px 2px 2px 2px;
+                    border: 1px solid {t.border};
                     border-radius: 0px;
                 }}
                 QScrollBar::handle:vertical:hover {{
@@ -2239,7 +2270,7 @@ class YT2PDFApp(QMainWindow):
                 card.setStyleSheet(f"""
                     QFrame#{card_id} {{
                         background-color: {t.card_bg};
-                        border: 2.5px solid {t.border};
+                        border: 2px solid {t.border};
                         border-radius: 0px;
                     }}
                 """)
@@ -2274,7 +2305,7 @@ class YT2PDFApp(QMainWindow):
                     QLabel {{
                         background-color: {t.yellow};
                         color: #000000;
-                        border: 2px solid {t.border};
+                        border: 1.5px solid {t.border};
                         border-radius: 0px;
                         font-family: 'Segoe UI', sans-serif;
                         font-weight: bold;
@@ -2302,7 +2333,7 @@ class YT2PDFApp(QMainWindow):
             self.right_col.setStyleSheet(f"""
                 QFrame#right_col_card {{
                     background-color: {t.card_bg};
-                    border: 2.5px solid {t.border};
+                    border: 2px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
@@ -2310,7 +2341,7 @@ class YT2PDFApp(QMainWindow):
             self.status_box.setStyleSheet(f"""
                 QFrame#status_box {{
                     background-color: {t.status_bg};
-                    border: 2px solid {t.border};
+                    border: 1.5px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
@@ -2328,7 +2359,7 @@ class YT2PDFApp(QMainWindow):
                 badge_frame.setStyleSheet(f"""
                     QFrame {{
                         background-color: {bg};
-                        border: 2px solid {t.border};
+                        border: 1.5px solid {t.border};
                         border-radius: 0px;
                     }}
                 """)
@@ -2339,7 +2370,7 @@ class YT2PDFApp(QMainWindow):
             self.preview_frame.setStyleSheet(f"""
                 QFrame#preview_frame {{
                     background-color: {t.inner_bg};
-                    border: 2px solid {t.border};
+                    border: 1.5px solid {t.border};
                     border-radius: 0px;
                 }}
             """)
@@ -2401,7 +2432,7 @@ class CompletionDialog(QDialog):
         card.setStyleSheet(f"""
             QFrame#comp_card {{
                 background-color: {t.card_bg};
-                border: 3px solid {t.border};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2419,7 +2450,7 @@ class CompletionDialog(QDialog):
         info_card.setStyleSheet(f"""
             QFrame#info_card {{
                 background-color: {t.card_bg_alt};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2539,15 +2570,17 @@ class DeduplicatePDFDialog(QDialog):
                 border: none;
             }}
             QScrollBar:vertical {{
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 background: {t.scrollbar_bg};
-                width: 14px;
-                margin: 0px;
+                width: 12px;
+                margin: 0px 0px 0px 0px;
                 border-radius: 0px;
             }}
             QScrollBar::handle:vertical {{
                 background: {t.scrollbar_handle};
                 min-height: 24px;
+                margin: 2px 2px 2px 2px;
+                border: 1px solid {t.border};
                 border-radius: 0px;
             }}
             QScrollBar::handle:vertical:hover {{
@@ -2586,7 +2619,7 @@ class DeduplicatePDFDialog(QDialog):
         pill.setStyleSheet(f"""
             QFrame {{
                 background-color: {t.yellow};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2612,7 +2645,7 @@ class DeduplicatePDFDialog(QDialog):
         card_files.setStyleSheet(f"""
             QFrame#card_files {{
                 background-color: {t.card_bg};
-                border: 2.5px solid {t.border};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2686,7 +2719,7 @@ class DeduplicatePDFDialog(QDialog):
         card_controls.setStyleSheet(f"""
             QFrame#card_controls {{
                 background-color: {t.card_bg};
-                border: 2.5px solid {t.border};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2714,7 +2747,7 @@ class DeduplicatePDFDialog(QDialog):
             QLabel {{
                 background-color: {t.yellow};
                 color: #000000;
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
                 font-family: 'Segoe UI', sans-serif;
                 font-weight: bold;
@@ -2773,7 +2806,7 @@ class DeduplicatePDFDialog(QDialog):
         self.card_results.setStyleSheet(f"""
             QFrame#card_results {{
                 background-color: {t.card_bg};
-                border: 2.5px solid {t.border};
+                border: 2px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2789,7 +2822,7 @@ class DeduplicatePDFDialog(QDialog):
         self.dialog_status_box.setStyleSheet(f"""
             QFrame#dialog_status_box {{
                 background-color: {t.status_bg};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
@@ -2849,7 +2882,7 @@ class DeduplicatePDFDialog(QDialog):
             QTextEdit {{
                 background-color: {t.inner_bg};
                 color: {t.text};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
                 padding: 6px;
             }}
@@ -2891,7 +2924,7 @@ class DeduplicatePDFDialog(QDialog):
         badge.setStyleSheet(f"""
             QFrame {{
                 background-color: {bg_color};
-                border: 2px solid {t.border};
+                border: 1.5px solid {t.border};
                 border-radius: 0px;
             }}
         """)
