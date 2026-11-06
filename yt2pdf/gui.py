@@ -1702,7 +1702,9 @@ class YT2PDFApp(QMainWindow):
         r_layout.setContentsMargins(16, 12, 16, 14)
         r_layout.setSpacing(8)
 
-        r_layout.addWidget(create_neo_card_header("[ 04 ] LIVE DASHBOARD & PREVIEW", COLOR_NEO_GREEN, self.right_col))
+        right_header = create_neo_card_header("[ 04 ] LIVE DASHBOARD & PREVIEW", COLOR_NEO_GREEN, self.right_col)
+        right_header.layout().setContentsMargins(0, 0, 0, 0)
+        r_layout.addWidget(right_header)
 
         # Status Ticker Box (Cream background)
         self.status_box = QFrame(self.right_col)
