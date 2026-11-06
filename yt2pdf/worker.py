@@ -145,9 +145,10 @@ class ExtractionWorker(threading.Thread):
                     # Send thumbnail of the newly accepted slide
                     # Resize preview to compact resolution for UI responsiveness
                     preview_h = 240
-                    preview_w = max(1, int(frame.shape[1] * (preview_h / float(frame.shape[0]))))
+                    preview_frame = committed_slide.frame_high_res
+                    preview_w = max(1, int(preview_frame.shape[1] * (preview_h / float(preview_frame.shape[0]))))
                     preview_rgb = cv2.cvtColor(
-                        cv2.resize(frame, (preview_w, preview_h), interpolation=cv2.INTER_AREA),
+                        cv2.resize(preview_frame, (preview_w, preview_h), interpolation=cv2.INTER_AREA),
                         cv2.COLOR_BGR2RGB
                     )
                     self._send(WorkerMessageType.THUMBNAIL, {

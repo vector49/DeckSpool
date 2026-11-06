@@ -444,6 +444,35 @@ class TestYT2PDFPipeline(unittest.TestCase):
         except Exception:
             pass
 
+    def test_presenter_split_screen_detection(self):
+        """Verify that PresenterDetector detects 50/50 split screen layouts."""
+        from yt2pdf.roi import PresenterDetector, detect_canvas_crop_box, mask_box
+        from yt2pdf.config import PresenterMaskMode
+
+        pd = PresenterDetector()
+        # Mock 360p frame with 50/50 split (left slide, right speaker)
+        h, w = 360, 640
+        frame_360 = np.zeros((h, w), dtype=np.uint8)
+        frame_360[:, :w//2] = 20   # Dark slide background
+        frame_360[:, w//2:] = 120  # Speaker webcam background
+
+        # Feed updates with detected face on the right half (cx ~ 0.72)
+        face_right = [(0.68, 0.20, 0.08, 0.15, 0.95)]
+        for _ in range(4):
+            pd.update(frame_360, detected_faces=face_right)
+
+        self.assertEqual(pd.detected_box, (0.50, 0.00, 0.50, 1.00))
+        box = pd.get_mask_box(PresenterMaskMode.AUTO)
+        self.assertEqual(box, (0.50, 0.00, 0.50, 1.00))
+
+        # Test canvas auto-crop on 50/50 split masked frame
+        high_res = np.zeros((720, 1280, 3), dtype=np.uint8)
+        high_res[:, :640] = 30  # slide content
+        high_res[:, 640:] = 150  # webcam
+        masked = mask_box(high_res, box)
+        crop = detect_canvas_crop_box([masked, masked])
+        self.assertEqual(crop, (0, 0, 640, 720))
+
 
 class TestPathAutoformatting(unittest.TestCase):
     """Test suite for path cleaning, quote stripping, and Explorer copy autoformatting."""

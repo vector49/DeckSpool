@@ -3,7 +3,7 @@
 import os
 import urllib.request
 import logging
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import cv2
 import numpy as np
 
@@ -70,7 +70,64 @@ class HumanNarratorDetector:
 
         return self._detector
 
-    def is_narrator_frame(self, frame_bgr: np.ndarray) -> Tuple[bool, str]:
+    def get_detected_faces(self, frame_bgr: np.ndarray) -> List[Tuple[float, float, float, float, float]]:
+        """Detects faces in frame and returns list of normalized (x, y, w, h, score)."""
+        if frame_bgr is None or frame_bgr.size == 0:
+            return []
+
+        h, w = frame_bgr.shape[:2]
+        analysis_w = 640
+        analysis_h = max(1, int(h * (analysis_w / float(w))))
+        small_frame = cv2.resize(frame_bgr, (analysis_w, analysis_h), interpolation=cv2.INTER_AREA)
+
+        detector = self._get_detector(analysis_w, analysis_h)
+        if detector is None:
+            return []
+
+        try:
+            _, faces = detector.detect(small_frame)
+            if faces is None or len(faces) == 0:
+                return []
+
+            results = []
+            for face in faces:
+                fx, fy, fw, fh = face[:4]
+                score = float(face[-1])
+                results.append((
+                    float(fx / analysis_w),
+                    float(fy / analysis_h),
+                    float(fw / analysis_w),
+                    float(fh / analysis_h),
+                    score
+                ))
+            return results
+        except Exception as e:
+            logger.debug(f"Face detection exception in get_detected_faces: {e}")
+            return []
+
+    def _has_complementary_slide_content(self, small_frame: np.ndarray, fn_cx: float) -> bool:
+        """Checks if the complementary side of the frame contains structured slide or code content."""
+        h, w = small_frame.shape[:2]
+        if fn_cx >= 0.55:
+            roi = small_frame[:, :int(w * 0.50)]
+        elif fn_cx <= 0.45:
+            roi = small_frame[:, int(w * 0.50):]
+        else:
+            return False
+
+        if roi.size == 0:
+            return False
+
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+        edge_ratio = np.count_nonzero(edges) / float(gray.size)
+        return edge_ratio >= 0.020
+
+    def is_narrator_frame(
+        self,
+        frame_bgr: np.ndarray,
+        detected_faces: Optional[List[Tuple[float, float, float, float, float]]] = None
+    ) -> Tuple[bool, str]:
         """Determines if a frame depicts a human narrator cutaway or conference gallery grid."""
         if frame_bgr is None or frame_bgr.size == 0:
             return False, "Empty frame"
@@ -87,33 +144,29 @@ class HumanNarratorDetector:
             return True, gallery_reason
 
         # 2. YuNet ONNX Face Detection
-        detector = self._get_detector(analysis_w, analysis_h)
-        if detector is not None:
-            try:
-                _, faces = detector.detect(small_frame)
-                if faces is not None and len(faces) > 0:
-                    for face in faces:
-                        fx, fy, fw, fh = face[:4]
-                        score = face[-1]
+        faces = detected_faces if detected_faces is not None else self.get_detected_faces(frame_bgr)
+        for fn_x, fn_y, fn_w, fn_h, score in faces:
+            fn_cx = fn_x + fn_w / 2.0
+            fn_cy = fn_y + fn_h / 2.0
+            area_frac = fn_w * fn_h
 
-                        fn_w = fw / float(analysis_w)
-                        fn_h = fh / float(analysis_h)
-                        fn_cx = (fx + fw / 2.0) / float(analysis_w)
-                        fn_cy = (fy + fh / 2.0) / float(analysis_h)
-                        area_frac = (fw * fh) / float(analysis_w * analysis_h)
+            is_central = (0.25 <= fn_cx <= 0.75) and (fn_cy <= 0.70)
+            is_prominent = (fn_h >= 0.20) or (area_frac >= 0.030)
+            is_dominant = (fn_h >= 0.32) and (0.20 <= fn_cx <= 0.80)
 
-                        is_central = (0.15 <= fn_cx <= 0.85) and (fn_cy <= 0.75)
-                        is_large = (fn_h >= 0.12) or (area_frac >= 0.012)
+            if (is_central and is_prominent) or is_dominant:
+                # If presenter is framed to one side (cx >= 0.68 or cx <= 0.32) and not dominating the screen,
+                # check if the opposite side has slide content (split screen or PiP)
+                if (fn_cx >= 0.68 or fn_cx <= 0.32) and (fn_h < 0.25):
+                    if self._has_complementary_slide_content(small_frame, fn_cx):
+                        continue
 
-                        if is_central and is_large:
-                            desc = (
-                                f"Prominent narrator face detected "
-                                f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
-                            )
-                            logger.info(desc)
-                            return True, desc
-            except Exception as e:
-                logger.debug(f"Face detection exception: {e}")
+                desc = (
+                    f"Prominent narrator face detected "
+                    f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
+                )
+                logger.info(desc)
+                return True, desc
 
         # 3. Fallback heuristic: Skin tone clustering in central region with low edge density
         is_fallback_narrator, fallback_reason = self._fallback_skin_edge_check(small_frame)

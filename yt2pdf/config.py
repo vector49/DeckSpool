@@ -16,6 +16,8 @@ class PresenterMaskMode(str, Enum):
     BOTTOM_RIGHT = "Bottom-Right"
     BOTTOM_LEFT = "Bottom-Left"
     TOP_LEFT = "Top-Left"
+    SPLIT_RIGHT_50 = "Right-Half Split (50%)"
+    SPLIT_LEFT_50 = "Left-Half Split (50%)"
     CUSTOM = "Custom Normalized Box"
 
 

@@ -159,7 +159,11 @@ class SlideDetector:
         self.committed_slides: List[Slide] = []
         self.candidate: Optional[CandidateSlide] = None
 
-    def _prepare_analysis_frame(self, frame_bgr: np.ndarray) -> Tuple[np.ndarray, imagehash.ImageHash]:
+    def _prepare_analysis_frame(
+        self,
+        frame_bgr: np.ndarray,
+        detected_faces: Optional[List[Tuple[float, float, float, float, float]]] = None
+    ) -> Tuple[np.ndarray, imagehash.ImageHash]:
         """Downscales frame to 360p height, applies ROI masks, and generates dHash."""
         h, w = frame_bgr.shape[:2]
         target_h = 360
@@ -169,7 +173,7 @@ class SlideDetector:
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
 
         if self.config.mask_presenter:
-            self.presenter_detector.update(gray)
+            self.presenter_detector.update(gray, detected_faces=detected_faces)
             mask_box_coords = self.presenter_detector.get_mask_box(
                 self.config.presenter_mode,
                 self.config.custom_roi_box
@@ -192,13 +196,17 @@ class SlideDetector:
         is_last_frame: bool = False
     ) -> Optional[Slide]:
         """Evaluates a sampled frame and returns a committed Slide if a transition settled."""
+        detected_faces = []
+        if self.config.mask_presenter or getattr(self.config, "filter_narrator_frames", True):
+            detected_faces = self.human_detector.get_detected_faces(frame_bgr)
+
         if getattr(self.config, "filter_narrator_frames", True):
-            is_narrator, reason = self.human_detector.is_narrator_frame(frame_bgr)
+            is_narrator, reason = self.human_detector.is_narrator_frame(frame_bgr, detected_faces=detected_faces)
             if is_narrator:
                 logger.debug(f"Skipping narrator/gallery cutaway at {timestamp:.1f}s: {reason}")
                 return None
 
-        gray, dhash = self._prepare_analysis_frame(frame_bgr)
+        gray, dhash = self._prepare_analysis_frame(frame_bgr, detected_faces=detected_faces)
         newly_committed_slide: Optional[Slide] = None
 
         if not self.committed_slides and self.candidate is None:
@@ -321,10 +329,18 @@ class SlideDetector:
             # Collapse progressive bullet-point builds into the completed slide (e.g. Page 2 -> Page 3)
             if getattr(self.config, "collapse_progressive_builds", True):
                 if self._is_progressive_slide_build(last_slide.frame_analysis, self.candidate.frame_analysis):
+                    high_res = self.candidate.frame_high_res
+                    if self.config.mask_presenter:
+                        mask_box_coords = self.presenter_detector.get_mask_box(
+                            self.config.presenter_mode,
+                            self.config.custom_roi_box
+                        )
+                        if mask_box_coords:
+                            high_res = mask_box(high_res, mask_box_coords)
                     upgraded_slide = Slide(
                         index=last_slide.index,
                         timestamp=self.candidate.first_seen_time,
-                        frame_high_res=self.candidate.frame_high_res,
+                        frame_high_res=high_res,
                         frame_analysis=self.candidate.frame_analysis,
                         dhash=self.candidate.dhash
                     )
@@ -334,10 +350,19 @@ class SlideDetector:
                     return upgraded_slide
 
         idx = len(self.committed_slides) + 1
+        high_res = self.candidate.frame_high_res
+        if self.config.mask_presenter:
+            mask_box_coords = self.presenter_detector.get_mask_box(
+                self.config.presenter_mode,
+                self.config.custom_roi_box
+            )
+            if mask_box_coords:
+                high_res = mask_box(high_res, mask_box_coords)
+
         slide = Slide(
             index=idx,
             timestamp=self.candidate.first_seen_time,
-            frame_high_res=self.candidate.frame_high_res,
+            frame_high_res=high_res,
             frame_analysis=self.candidate.frame_analysis,
             dhash=self.candidate.dhash
         )

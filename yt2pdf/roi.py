@@ -15,15 +15,19 @@ PRESET_BOXES = {
     PresenterMaskMode.BOTTOM_RIGHT: (0.72, 0.60, 0.26, 0.35),
     PresenterMaskMode.BOTTOM_LEFT: (0.02, 0.60, 0.26, 0.35),
     PresenterMaskMode.TOP_LEFT: (0.02, 0.05, 0.26, 0.35),
+    PresenterMaskMode.SPLIT_RIGHT_50: (0.50, 0.00, 0.50, 1.00),
+    PresenterMaskMode.SPLIT_LEFT_50: (0.00, 0.00, 0.50, 1.00),
 }
 
-# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip
+# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip and 50/50 splits
 CANDIDATE_PIP_BOXES = [
     ("top_right", (0.70, 0.04, 0.28, 0.36)),
     ("bottom_right", (0.70, 0.60, 0.28, 0.36)),
     ("bottom_left", (0.02, 0.60, 0.28, 0.36)),
     ("top_left", (0.02, 0.04, 0.28, 0.36)),
     ("right_sidebar", (0.82, 0.00, 0.18, 1.00)),
+    ("split_right_50", (0.50, 0.00, 0.50, 1.00)),
+    ("split_left_50", (0.00, 0.00, 0.50, 1.00)),
 ]
 
 
@@ -59,7 +63,7 @@ def mask_box(frame: np.ndarray, box_norm: Tuple[float, float, float, float]) -> 
 
 
 class PresenterDetector:
-    """Detects presenter PIP webcam box or Zoom/Teams participant sidebar using EMA motion variance and structural lines."""
+    """Detects presenter PIP webcam box, 50/50 split-screen, or Zoom/Teams participant sidebar using EMA motion variance and structural lines."""
 
     def __init__(self, grid_size: int = 16, ema_alpha: float = 0.15):
         self.grid_size = grid_size
@@ -67,11 +71,21 @@ class PresenterDetector:
         self._prev_frame: Optional[np.ndarray] = None
         self._motion_ema: Optional[np.ndarray] = None
         self._samples_count: int = 0
+        self._recent_faces: List[Tuple[float, float, float, float, float]] = []
         self.detected_box: Optional[Tuple[float, float, float, float]] = None
 
-    def update(self, gray_360p: np.ndarray) -> None:
+    def update(
+        self,
+        gray_360p: np.ndarray,
+        detected_faces: Optional[List[Tuple[float, float, float, float, float]]] = None
+    ) -> None:
         """Update Exponential Moving Average (EMA) motion statistics with a new 360p grayscale frame."""
         h, w = gray_360p.shape[:2]
+        if detected_faces:
+            self._recent_faces.extend(detected_faces)
+            if len(self._recent_faces) > 30:
+                self._recent_faces = self._recent_faces[-30:]
+
         if self._prev_frame is None or self._prev_frame.shape != gray_360p.shape:
             self._prev_frame = gray_360p.copy()
             self._motion_ema = np.zeros((h, w), dtype=np.float32)
@@ -91,14 +105,69 @@ class PresenterDetector:
         self._samples_count += 1
         self._prev_frame = gray_360p.copy()
 
-        # Check for Zoom/Teams right-hand vertical participant strip boundary
+        # 1. Check for 50/50 split-screen layout (e.g. left slide, right webcam)
+        split_box = self._detect_split_screen(gray_360p)
+        if split_box is not None:
+            self.detected_box = split_box
+            return
+
+        # 2. Check for Zoom/Teams right-hand vertical participant strip boundary
         sidebar_box = self._detect_zoom_sidebar(gray_360p)
         if sidebar_box is not None:
             self.detected_box = sidebar_box
             return
 
+        # 3. Check for corner PIP boxes
         if self._samples_count >= 4:
             self._resolve_candidate_box(h, w)
+
+    def _detect_split_screen(self, gray_360p: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
+        """Detects 50/50 side-by-side presentation layout (e.g. left slide, right speaker webcam, or vice versa)."""
+        h, w = gray_360p.shape[:2]
+        mid = w // 2
+
+        # Check center vertical column gradient (around 47% to 53% of width)
+        x_start = int(w * 0.47)
+        x_end = int(w * 0.53)
+        col_diffs = np.mean(np.abs(np.diff(gray_360p[:, x_start:x_end].astype(np.float32), axis=1)), axis=0)
+        max_center_grad = float(np.max(col_diffs)) if len(col_diffs) > 0 else 0.0
+
+        # 1. Face-based ground truth (presenter webcam face cannot jump between presentation halves)
+        if self._recent_faces:
+            right_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) >= 0.55)
+            left_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) <= 0.45)
+            total_f = len(self._recent_faces)
+            if total_f >= 2:
+                if right_faces > left_faces and (right_faces / float(total_f)) >= 0.55:
+                    if max_center_grad > 15.0 or (
+                        self._motion_ema is not None and (
+                            float(np.sum(self._motion_ema[:, mid:])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
+                        )
+                    ):
+                        return (0.50, 0.00, 0.50, 1.00)
+
+                if left_faces > right_faces and (left_faces / float(total_f)) >= 0.55:
+                    if max_center_grad > 15.0 or (
+                        self._motion_ema is not None and (
+                            float(np.sum(self._motion_ema[:, :mid])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
+                        )
+                    ):
+                        return (0.00, 0.00, 0.50, 1.00)
+
+        # 2. Pure motion & boundary check (if no face detected or camera off)
+        if self._motion_ema is not None and self._samples_count >= 4 and not self._recent_faces:
+            total_motion = float(np.sum(self._motion_ema))
+            if total_motion > 1e-3 and max_center_grad > 18.0:
+                left_motion = float(np.sum(self._motion_ema[:, :mid])) / total_motion
+                right_motion = float(np.sum(self._motion_ema[:, mid:])) / total_motion
+                if right_motion >= 0.70:
+                    return (0.50, 0.00, 0.50, 1.00)
+                if left_motion >= 0.70:
+                    return (0.00, 0.00, 0.50, 1.00)
+
+        return None
+
+        return None
 
     def _detect_zoom_sidebar(self, gray_360p: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
         """Detects a persistent right-side participant sidebar (e.g. Zoom/Teams vertical strip)."""
@@ -168,26 +237,51 @@ class PresenterDetector:
 
 
 def detect_canvas_crop_box(frames: List[np.ndarray], threshold: int = 18) -> Optional[Tuple[int, int, int, int]]:
-    """Detects black bars / letterboxing around presentation slides."""
+    """Detects black bars / letterboxing around presentation slides or split-screen crops."""
     if not frames:
         return None
 
     h, w = frames[0].shape[:2]
-    crop_boxes = []
 
+    # 1. Quick split-screen mask check: if majority of frames have one half completely masked (< 2.0 mean)
+    # while the other half has presentation content (> 5.0 mean), crop to that half
     sample_frames = (
         frames
         if len(frames) <= 10
         else [frames[i] for i in np.linspace(0, len(frames) - 1, 10, dtype=int)]
     )
+    sample_grays = [
+        cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) if len(f.shape) == 3 else f
+        for f in sample_frames
+    ]
+
+    right_masked_count = sum(1 for g in sample_grays if np.mean(g[:, w // 2:]) < 2.0 and np.mean(g[:, :w // 2]) > 5.0)
+    left_masked_count = sum(1 for g in sample_grays if np.mean(g[:, :w // 2]) < 2.0 and np.mean(g[:, w // 2:]) > 5.0)
+    n_samples = len(sample_grays)
+
+    if (right_masked_count / float(n_samples)) >= 0.50:
+        return (0, 0, w // 2, h)
+    if (left_masked_count / float(n_samples)) >= 0.50:
+        return (w // 2, 0, w, h)
+
+    crop_boxes = []
 
     for f in sample_frames:
         gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) if len(f.shape) == 3 else f
+
+        # Adaptive thresholding for dark presentations
+        top_edge = float(np.mean(gray[:5, :]))
+        bot_edge = float(np.mean(gray[-5:, :]))
+        left_edge = float(np.mean(gray[:, :5]))
+        right_edge = float(np.mean(gray[:, -5:]))
+        border_lum = min(top_edge, bot_edge, left_edge, right_edge)
+        eff_thresh = threshold if threshold != 18 else max(6.0, border_lum + 8.0)
+
         row_means = np.mean(gray, axis=1)
         col_means = np.mean(gray, axis=0)
 
-        valid_rows = np.where(row_means > threshold)[0]
-        valid_cols = np.where(col_means > threshold)[0]
+        valid_rows = np.where(row_means > eff_thresh)[0]
+        valid_cols = np.where(col_means > eff_thresh)[0]
 
         if len(valid_rows) > 0 and len(valid_cols) > 0:
             y1 = int(valid_rows[0])
