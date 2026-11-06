@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtWidgets import QApplication
 
 
 def get_asset_path(relative_path: str = "") -> Path:
@@ -82,6 +83,9 @@ class FontManager:
         Returns:
             Dict mapping font filename stem to list of registered family names.
         """
+        if QApplication.instance() is None:
+            return {}
+
         fonts_dir = get_fonts_dir()
         if not fonts_dir.exists():
             print(f"[FontManager] Warning: Fonts directory not found at {fonts_dir}")
@@ -121,24 +125,28 @@ class FontManager:
                 "display": "Bricolage Grotesque, sans-serif",
                 "body": "Plus Jakarta Sans, " + system_sans,
                 "mono": "Space Mono, " + system_mono,
+                "code": "JetBrains Mono, " + system_mono,
             }
         elif chosen_preset == PRESET_INDUSTRIAL_BOLD:
             return {
                 "display": "Archivo Black, sans-serif",
                 "body": "Plus Jakarta Sans, " + system_sans,
                 "mono": "JetBrains Mono, " + system_mono,
+                "code": "JetBrains Mono, " + system_mono,
             }
         elif chosen_preset == PRESET_CLEAN_CODE:
             return {
                 "display": "Space Grotesk, sans-serif",
                 "body": "Plus Jakarta Sans, " + system_sans,
                 "mono": "JetBrains Mono, " + system_mono,
+                "code": "JetBrains Mono, " + system_mono,
             }
         else:  # PRESET_TECH_BRUTALIST (default)
             return {
                 "display": "Space Grotesk, sans-serif",
                 "body": "Plus Jakarta Sans, " + system_sans,
                 "mono": "Space Mono, " + system_mono,
+                "code": "JetBrains Mono, " + system_mono,
             }
 
     def set_preset(self, preset_name: str) -> None:

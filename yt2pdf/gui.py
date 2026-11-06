@@ -56,6 +56,7 @@ from yt2pdf.config import (
 from yt2pdf.downloader import VideoDownloader, sanitize_filename, clean_file_path, is_local_file_path
 from yt2pdf.worker import ExtractionWorker
 from yt2pdf.deduplicator import deduplicate_pdf, DeduplicationResult
+from yt2pdf.font_manager import font_manager
 
 logger = logging.getLogger(__name__)
 
@@ -312,8 +313,13 @@ class NeoLabel(QLabel):
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
-        self.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.setStyleSheet("color: #000000;")
+        if QApplication.instance() and not font_manager.is_loaded:
+            font_manager.load_all_fonts()
+        if font_manager.is_loaded:
+            self.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        else:
+            self.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.setStyleSheet("color: #000000; font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;")
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "text":
@@ -352,6 +358,10 @@ class NeoButton(QPushButton):
         self._theme = theme or get_current_theme()
         self.setFixedHeight(height)
         self.setCursor(Qt.PointingHandCursor)
+        if QApplication.instance() and not font_manager.is_loaded:
+            font_manager.load_all_fonts()
+        if font_manager.is_loaded:
+            self.setFont(font_manager.create_qfont("display", size=font_size if font_size < 18 else 12, weight=QFont.Bold))
         self._apply_style()
 
     def set_theme(self, theme: NeoTheme):
@@ -375,7 +385,7 @@ class NeoButton(QPushButton):
                 color: {self._text_color};
                 border: 1.5px solid {border_col};
                 border-radius: {self._corner_radius}px;
-                font-family: 'Segoe UI', 'Segoe UI Emoji', sans-serif;
+                font-family: 'Space Grotesk', 'Segoe UI', 'Segoe UI Emoji', sans-serif;
                 font-size: {self._font_size}px;
                 font-weight: bold;
                 padding: {pad_top}px {pad_side}px;
@@ -417,12 +427,19 @@ class NeoButton(QPushButton):
 class NeoEntry(QLineEdit):
     """Neo-Brutalist text entry with bold font, thick border, and Tkinter-compat helpers."""
 
-    def __init__(self, placeholder="", height=38, parent=None, theme: Optional[NeoTheme] = None):
+    def __init__(self, placeholder="", height=38, parent=None, theme: Optional[NeoTheme] = None, font_role: str = "body"):
         super().__init__(parent)
         self._theme = theme or get_current_theme()
+        self._font_role = font_role
         self.setFixedHeight(height)
         self.setPlaceholderText(placeholder)
-        self.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        if QApplication.instance() and not font_manager.is_loaded:
+            font_manager.load_all_fonts()
+        if font_manager.is_loaded:
+            size = 10 if font_role == "body" else 9
+            self.setFont(font_manager.create_qfont(font_role, size=size, weight=QFont.Bold))
+        else:
+            self.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self._paste_callback = None
         self._apply_style()
 
@@ -432,14 +449,16 @@ class NeoEntry(QLineEdit):
 
     def _apply_style(self):
         theme = self._theme
+        font_family = "'Plus Jakarta Sans', 'Segoe UI', sans-serif" if self._font_role == "body" else "'Space Mono', 'Consolas', monospace"
+        font_size = 12 if self._font_role == "body" else 11
         self.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {theme.entry_bg};
                 color: {theme.entry_fg};
                 border: 1.5px solid {theme.entry_border};
                 border-radius: 0px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 12px;
+                font-family: {font_family};
+                font-size: {font_size}px;
                 font-weight: bold;
                 padding: 6px 10px;
             }}
@@ -496,7 +515,12 @@ class NeoSwitch(QCheckBox):
         super().__init__(text, parent)
         self._theme = theme or get_current_theme()
         self.setCursor(Qt.PointingHandCursor)
-        self.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        if QApplication.instance() and not font_manager.is_loaded:
+            font_manager.load_all_fonts()
+        if font_manager.is_loaded:
+            self.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        else:
+            self.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
     def set_theme(self, theme: NeoTheme):
@@ -767,7 +791,7 @@ class NeoStandaloneButtonGroup(QWidget):
                         color: #000000;
                         border: 1.5px solid {theme.border};
                         border-radius: 0px;
-                        font-family: 'Segoe UI', sans-serif;
+                        font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
                         padding: 4px 12px;
@@ -793,7 +817,7 @@ class NeoStandaloneButtonGroup(QWidget):
                         color: {theme.unselected_btn_fg};
                         border: 1.5px solid {theme.border};
                         border-radius: 0px;
-                        font-family: 'Segoe UI', sans-serif;
+                        font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
                         font-size: 12px;
                         font-weight: bold;
                         padding: 4px 12px;
@@ -864,7 +888,7 @@ class NeoComboBox(QComboBox):
                 color: {theme.text};
                 border: 1.5px solid {theme.border};
                 border-radius: 0px;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
                 font-size: 12px;
                 font-weight: bold;
                 padding: 4px 10px;
@@ -899,7 +923,7 @@ class NeoComboBox(QComboBox):
                 border-radius: 0px;
                 selection-background-color: {theme.yellow};
                 selection-color: #000000;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
                 font-weight: bold;
             }}
         """)
@@ -956,7 +980,7 @@ class ThumbnailPreviewLabel(QLabel):
 
     def _apply_style(self):
         theme = self._theme
-        self.setStyleSheet(f"color: {theme.text_dim}; font-family: 'Segoe UI'; font-size: 12px; font-weight: bold;")
+        self.setStyleSheet(f"color: {theme.text_dim}; font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif; font-size: 11px; font-weight: bold;")
 
     def set_thumbnail_pixmap(self, pixmap: QPixmap):
         self._pixmap = pixmap
@@ -1008,11 +1032,14 @@ class NeoCardHeader(QWidget):
         # Neo badge tag
         self.tag = QFrame(self)
         tag_layout = QHBoxLayout(self.tag)
-        tag_layout.setContentsMargins(10, 3, 10, 3)
+        tag_layout.setContentsMargins(10, 4, 10, 4)
 
         self.lbl = NeoLabel(title, self.tag)
-        self.lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        if font_manager.is_loaded:
+            self.lbl.setFont(font_manager.create_qfont("display", size=10, weight=QFont.Bold))
+        else:
+            self.lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif;")
         tag_layout.addWidget(self.lbl)
 
         head_layout.addWidget(self.tag)
@@ -1138,8 +1165,8 @@ class YT2PDFApp(QMainWindow):
 
         # Title
         self.title_label = NeoLabel("YT2PDF ✦", self.header_frame)
-        self.title_label.setFont(QFont("Segoe UI", 22, QFont.Bold))
-        self.title_label.setStyleSheet("color: #000000; border: none;")
+        self.title_label.setFont(font_manager.create_qfont("display", size=22, weight=QFont.Bold))
+        self.title_label.setStyleSheet(f"color: {self.theme.text}; border: none; font-family: 'Space Grotesk', sans-serif; font-weight: bold;")
         h_layout.addWidget(self.title_label)
 
         # Pill Subtitle
@@ -1152,10 +1179,10 @@ class YT2PDFApp(QMainWindow):
             }}
         """)
         sp_layout = QHBoxLayout(self.sub_pill)
-        sp_layout.setContentsMargins(12, 3, 12, 3)
+        sp_layout.setContentsMargins(12, 4, 12, 4)
         self.sub_lbl = NeoLabel("✦ SLIDE EXTRACTOR & LOSSLESS PDF BUILDER ✦", self.sub_pill)
-        self.sub_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        self.sub_lbl.setFont(font_manager.create_qfont("display", size=9, weight=QFont.Bold))
+        self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.5px;")
         sp_layout.addWidget(self.sub_lbl)
         h_layout.addWidget(self.sub_pill)
 
@@ -1333,7 +1360,8 @@ class YT2PDFApp(QMainWindow):
 
         # Input source label
         self.input_label = NeoLabel("YouTube URL:", card)
-        self.input_label.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
+        self.input_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        self.input_label.setStyleSheet(f"color: {self.theme.text}; padding-left: 16px; padding-top: 4px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         card_layout.addWidget(self.input_label)
 
         # Input entry row
@@ -1362,7 +1390,8 @@ class YT2PDFApp(QMainWindow):
 
         # Output PDF destination label
         self.output_label = NeoLabel("Output PDF File:", card)
-        self.output_label.setStyleSheet("color: #000000; padding-left: 16px; padding-top: 4px;")
+        self.output_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        self.output_label.setStyleSheet(f"color: {self.theme.text}; padding-left: 16px; padding-top: 4px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         card_layout.addWidget(self.output_label)
 
         # Output entry row
@@ -1472,22 +1501,23 @@ class YT2PDFApp(QMainWindow):
         tl_layout.setContentsMargins(0, 0, 0, 0)
 
         t_lbl = NeoLabel(title, top_line)
-        t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {t.text};")
+        t_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text}; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         tl_layout.addWidget(t_lbl)
         tl_layout.addStretch()
 
         val_label = NeoLabel(initial_val_str, top_line)
-        val_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        val_label.setFont(font_manager.create_qfont("mono", size=9, weight=QFont.Bold))
         val_label.setAlignment(Qt.AlignCenter)
-        val_label.setFixedSize(62, 26)
+        val_label.setFixedSize(64, 26)
         val_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {t.yellow};
                 color: #000000;
                 border: 1.5px solid {t.border};
                 border-radius: 0px;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Space Mono', 'Consolas', monospace;
+                font-size: 11px;
                 font-weight: bold;
             }}
         """)
@@ -1495,8 +1525,8 @@ class YT2PDFApp(QMainWindow):
         r_layout.addWidget(top_line)
 
         sub_lbl = NeoLabel(subtitle, row_widget)
-        sub_lbl.setFont(QFont("Segoe UI", 10))
-        sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none;")
+        sub_lbl.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Normal))
+        sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none; font-family: 'Plus Jakarta Sans', sans-serif;")
         sub_lbl.setWordWrap(True)
         r_layout.addWidget(sub_lbl)
 
@@ -1561,6 +1591,8 @@ class YT2PDFApp(QMainWindow):
         ms_layout.setSpacing(8)
 
         self.pip_pos_label = NeoLabel("PIP Position:", mode_select_row)
+        self.pip_pos_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        self.pip_pos_label.setStyleSheet(f"color: {self.theme.text}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;")
         ms_layout.addWidget(self.pip_pos_label)
         self.pip_mode_dropdown = NeoComboBox(
             mode_select_row,
@@ -1578,8 +1610,10 @@ class YT2PDFApp(QMainWindow):
         cb_layout.setSpacing(8)
 
         self.custom_box_label = NeoLabel("Custom Box (x,y,w,h):", self.custom_box_row)
+        self.custom_box_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        self.custom_box_label.setStyleSheet(f"color: {self.theme.text}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;")
         cb_layout.addWidget(self.custom_box_label)
-        self.custom_box_entry = NeoEntry("0.75,0.70,0.25,0.30", height=32, parent=self.custom_box_row)
+        self.custom_box_entry = NeoEntry("0.75,0.70,0.25,0.30", height=32, parent=self.custom_box_row, font_role="mono")
         self.custom_box_entry.insert(0, "0.75,0.70,0.25,0.30")
         cb_layout.addWidget(self.custom_box_entry, stretch=1)
         pf_layout.addWidget(self.custom_box_row)
@@ -1637,8 +1671,8 @@ class YT2PDFApp(QMainWindow):
         sb_layout.setContentsMargins(12, 6, 12, 6)
 
         self.status_label = NeoLabel("Ready to extract slides", self.status_box)
-        self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.status_label.setStyleSheet("color: #000000; border: none; background: transparent;")
+        self.status_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         sb_layout.addWidget(self.status_label)
         r_layout.addWidget(self.status_box)
 
@@ -1665,8 +1699,8 @@ class YT2PDFApp(QMainWindow):
 
         # Slide Thumbnail Preview Card
         self.preview_title_lbl = NeoLabel("LATEST CAPTURED SLIDE:", self.right_col)
-        self.preview_title_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        self.preview_title_lbl.setStyleSheet("color: #000000; border: none; padding-top: 2px;")
+        self.preview_title_lbl.setFont(font_manager.create_qfont("display", size=9, weight=QFont.Bold))
+        self.preview_title_lbl.setStyleSheet(f"color: {self.theme.text}; border: none; padding-top: 2px; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.3px;")
         r_layout.addWidget(self.preview_title_lbl)
 
         self.preview_frame = QFrame(self.right_col)
@@ -1720,13 +1754,13 @@ class YT2PDFApp(QMainWindow):
         b_layout.setSpacing(1)
 
         t_lbl = NeoLabel(title, badge)
-        t_lbl.setFont(QFont("Segoe UI", 8, QFont.Bold))
-        t_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        t_lbl.setFont(font_manager.create_qfont("display", size=8, weight=QFont.Bold))
+        t_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.3px;")
         b_layout.addWidget(t_lbl)
 
         v_lbl = NeoLabel(initial_val, badge)
-        v_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        v_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        v_lbl.setFont(font_manager.create_qfont("mono", size=11, weight=QFont.Bold))
+        v_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Mono', 'Consolas', monospace; font-size: 13px; font-weight: bold;")
         b_layout.addWidget(v_lbl)
 
         if not hasattr(self, "_kpi_badges"):
@@ -1742,8 +1776,8 @@ class YT2PDFApp(QMainWindow):
         f_layout.setContentsMargins(4, 2, 4, 2)
 
         self.footer_lbl = NeoLabel("YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced", footer)
-        self.footer_lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        self.footer_lbl.setStyleSheet("color: #000000; border: none;")
+        self.footer_lbl.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Bold))
+        self.footer_lbl.setStyleSheet(f"color: {self.theme.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         f_layout.addWidget(self.footer_lbl)
         f_layout.addStretch()
 
@@ -1948,16 +1982,16 @@ class YT2PDFApp(QMainWindow):
                 }}
             """)
             if hasattr(self, "pip_pos_label"):
-                self.pip_pos_label.setStyleSheet(f"color: {t.text}; border: none; font-weight: bold;")
+                self.pip_pos_label.setStyleSheet(f"color: {t.text}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;")
             self.pip_mode_dropdown.setEnabled(True)
 
             is_custom = (choice == PresenterMaskMode.CUSTOM.value)
             self.custom_box_entry.setEnabled(is_custom)
             if hasattr(self, "custom_box_label"):
                 self.custom_box_label.setStyleSheet(
-                    f"color: {t.text}; border: none; font-weight: bold;"
+                    f"color: {t.text}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;"
                     if is_custom else
-                    f"color: {t.text_dim}; border: none; font-weight: bold;"
+                    f"color: {t.text_dim}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;"
                 )
         else:
             # Greyed-out Inactive Card
@@ -1969,10 +2003,10 @@ class YT2PDFApp(QMainWindow):
                 }}
             """)
             if hasattr(self, "pip_pos_label"):
-                self.pip_pos_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold;")
+                self.pip_pos_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;")
             self.pip_mode_dropdown.setEnabled(False)
             if hasattr(self, "custom_box_label"):
-                self.custom_box_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold;")
+                self.custom_box_label.setStyleSheet(f"color: {t.text_dim}; border: none; font-weight: bold; font-family: 'Plus Jakarta Sans', sans-serif;")
             self.custom_box_entry.setEnabled(False)
 
     # ---------------- Start & Cancellation Pipeline ----------------
@@ -2203,7 +2237,7 @@ class YT2PDFApp(QMainWindow):
 
         # Header elements
         if hasattr(self, "title_label"):
-            self.title_label.setStyleSheet(f"color: {t.text}; border: none;")
+            self.title_label.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Space Grotesk', sans-serif; font-weight: bold;")
         if hasattr(self, "sub_pill"):
             self.sub_pill.setStyleSheet(f"""
                 QFrame {{
@@ -2213,7 +2247,7 @@ class YT2PDFApp(QMainWindow):
                 }}
             """)
         if hasattr(self, "sub_lbl"):
-            self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+            self.sub_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.5px;")
 
         # Theme toggle button
         if hasattr(self, "theme_toggle_btn"):
@@ -2283,9 +2317,9 @@ class YT2PDFApp(QMainWindow):
         if hasattr(self, "source_segmented"):
             self.source_segmented.set_theme(t)
         if hasattr(self, "input_label"):
-            self.input_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px;")
+            self.input_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         if hasattr(self, "output_label"):
-            self.output_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px;")
+            self.output_label.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 4px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         if hasattr(self, "input_entry"):
             self.input_entry.set_theme(t)
         if hasattr(self, "output_entry"):
@@ -2300,18 +2334,19 @@ class YT2PDFApp(QMainWindow):
         # Card 02 Sliders and badges
         if hasattr(self, "_slider_rows"):
             for t_lbl, val_label, sub_lbl, slider in self._slider_rows:
-                t_lbl.setStyleSheet(f"color: {t.text};")
+                t_lbl.setStyleSheet(f"color: {t.text}; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
                 val_label.setStyleSheet(f"""
                     QLabel {{
                         background-color: {t.yellow};
                         color: #000000;
                         border: 1.5px solid {t.border};
                         border-radius: 0px;
-                        font-family: 'Segoe UI', sans-serif;
+                        font-family: 'Space Mono', 'Consolas', monospace;
+                        font-size: 11px;
                         font-weight: bold;
                     }}
                 """)
-                sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none;")
+                sub_lbl.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none; font-family: 'Plus Jakarta Sans', sans-serif;")
                 slider.set_theme(t)
 
         # Card 03 Controls
@@ -2348,7 +2383,7 @@ class YT2PDFApp(QMainWindow):
         if hasattr(self, "status_label"):
             curr_ss = self.status_label.styleSheet()
             if COLOR_NEO_RED not in curr_ss and t.red not in curr_ss:
-                self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
+                self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         if hasattr(self, "progress_bar"):
             self.progress_bar.set_theme(t)
 
@@ -2365,7 +2400,7 @@ class YT2PDFApp(QMainWindow):
                 """)
 
         if hasattr(self, "preview_title_lbl"):
-            self.preview_title_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-top: 2px;")
+            self.preview_title_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-top: 2px; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.3px;")
         if hasattr(self, "preview_frame"):
             self.preview_frame.setStyleSheet(f"""
                 QFrame#preview_frame {{
@@ -2384,7 +2419,7 @@ class YT2PDFApp(QMainWindow):
 
         # Footer
         if hasattr(self, "footer_lbl"):
-            self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none;")
+            self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
 
     def _handle_error(self, error_message: str):
         self._set_processing_ui_state(False)
@@ -2459,13 +2494,13 @@ class CompletionDialog(QDialog):
         ic_layout.setSpacing(4)
 
         t_lbl = NeoLabel(f"Compiled {slides_count} unique presentation slides in {time_text}.", info_card)
-        t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
+        t_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         ic_layout.addWidget(t_lbl)
 
         p_lbl = NeoLabel(f"Saved to: {pdf_path}", info_card)
-        p_lbl.setFont(QFont("Segoe UI", 9))
-        p_lbl.setStyleSheet(f"color: {t.text_dim}; border: none; background: transparent;")
+        p_lbl.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Normal))
+        p_lbl.setStyleSheet(f"color: {t.text_dim}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif;")
         p_lbl.setWordWrap(True)
         ic_layout.addWidget(p_lbl)
         c_layout.addWidget(info_card)
@@ -2611,8 +2646,8 @@ class DeduplicatePDFDialog(QDialog):
         h_layout.setSpacing(10)
 
         t_lbl = NeoLabel("REVIEW & TRUNCATE DUPLICATES ✦", header_frame)
-        t_lbl.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {t.text}; border: none;")
+        t_lbl.setFont(font_manager.create_qfont("display", size=16, weight=QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Space Grotesk', sans-serif; font-weight: bold;")
         h_layout.addWidget(t_lbl)
 
         pill = QFrame(header_frame)
@@ -2626,8 +2661,8 @@ class DeduplicatePDFDialog(QDialog):
         p_layout = QHBoxLayout(pill)
         p_layout.setContentsMargins(10, 3, 10, 3)
         plbl = NeoLabel("✦ DEDUPLICATOR ✦", pill)
-        plbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        plbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        plbl.setFont(font_manager.create_qfont("display", size=9, weight=QFont.Bold))
+        plbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.5px;")
         p_layout.addWidget(plbl)
         h_layout.addWidget(pill)
         h_layout.addStretch()
@@ -2635,8 +2670,8 @@ class DeduplicatePDFDialog(QDialog):
         c_layout.addWidget(header_frame)
 
         desc_lbl = NeoLabel("Scans all pages, detects repetitive slides, and keeps only the first appearance alone.", container)
-        desc_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        desc_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-bottom: 2px;")
+        desc_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        desc_lbl.setStyleSheet(f"color: {t.text}; border: none; padding-bottom: 2px; font-family: 'Plus Jakarta Sans', sans-serif;")
         c_layout.addWidget(desc_lbl)
 
         # Card 1: Document Selection
@@ -2657,7 +2692,8 @@ class DeduplicatePDFDialog(QDialog):
 
         # Input PDF row
         in_lbl = NeoLabel("Input PDF:", card_files)
-        in_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
+        in_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        in_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         cf_layout.addWidget(in_lbl)
 
         in_row = QWidget(card_files)
@@ -2684,7 +2720,8 @@ class DeduplicatePDFDialog(QDialog):
 
         # Output PDF row
         out_lbl = NeoLabel("Save Cleaned PDF to:", card_files)
-        out_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
+        out_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        out_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         cf_layout.addWidget(out_lbl)
 
         out_row = QWidget(card_files)
@@ -2734,22 +2771,23 @@ class DeduplicatePDFDialog(QDialog):
         tt_layout.setContentsMargins(16, 0, 16, 0)
 
         t_lbl = NeoLabel("Similarity Threshold:", thresh_top)
-        t_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        t_lbl.setStyleSheet(f"color: {t.text};")
+        t_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        t_lbl.setStyleSheet(f"color: {t.text}; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         tt_layout.addWidget(t_lbl)
         tt_layout.addStretch()
 
         self.threshold_label = NeoLabel("94%", thresh_top)
-        self.threshold_label.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        self.threshold_label.setFont(font_manager.create_qfont("mono", size=9, weight=QFont.Bold))
         self.threshold_label.setAlignment(Qt.AlignCenter)
-        self.threshold_label.setFixedSize(62, 26)
+        self.threshold_label.setFixedSize(64, 26)
         self.threshold_label.setStyleSheet(f"""
             QLabel {{
                 background-color: {t.yellow};
                 color: #000000;
                 border: 1.5px solid {t.border};
                 border-radius: 0px;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Space Mono', 'Consolas', monospace;
+                font-size: 11px;
                 font-weight: bold;
             }}
         """)
@@ -2757,8 +2795,8 @@ class DeduplicatePDFDialog(QDialog):
         cc_layout.addWidget(thresh_top)
 
         sub_desc = NeoLabel("<b>Sensitivity for declaring pages identical</b> (lower merges near-duplicates, higher requires stricter visual match)", card_controls)
-        sub_desc.setFont(QFont("Segoe UI", 10))
-        sub_desc.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none; padding-left: 16px;")
+        sub_desc.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Normal))
+        sub_desc.setStyleSheet(f"color: {t.text if t.name == 'light' else t.text_dim}; border: none; padding-left: 16px; font-family: 'Plus Jakarta Sans', sans-serif;")
         sub_desc.setWordWrap(True)
         cc_layout.addWidget(sub_desc)
 
@@ -2830,9 +2868,9 @@ class DeduplicatePDFDialog(QDialog):
         dsb_layout.setContentsMargins(12, 6, 12, 6)
 
         self.status_label = NeoLabel("Ready to review PDF", self.dialog_status_box)
-        self.status_label.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.status_label.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent;")
+        self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         dsb_layout.addWidget(self.status_label)
 
         status_row = QWidget(self.card_results)
@@ -2867,7 +2905,8 @@ class DeduplicatePDFDialog(QDialog):
 
         # Details Log Box
         rep_lbl = NeoLabel("Repetitive Pages Found:", self.card_results)
-        rep_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px;")
+        rep_lbl.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
+        rep_lbl.setStyleSheet(f"color: {t.text}; padding-left: 16px; padding-top: 2px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         cr_layout.addWidget(rep_lbl)
 
         txt_box = QWidget(self.card_results)
@@ -2877,7 +2916,7 @@ class DeduplicatePDFDialog(QDialog):
         self.details_textbox = QTextEdit(txt_box)
         self.details_textbox.setFixedHeight(130)
         self.details_textbox.setReadOnly(True)
-        self.details_textbox.setFont(QFont("Consolas", 9, QFont.Bold))
+        self.details_textbox.setFont(font_manager.create_qfont("code", size=9, weight=QFont.Medium))
         self.details_textbox.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {t.inner_bg};
@@ -2885,6 +2924,8 @@ class DeduplicatePDFDialog(QDialog):
                 border: 1.5px solid {t.border};
                 border-radius: 0px;
                 padding: 6px;
+                font-family: 'JetBrains Mono', 'Space Mono', 'Consolas', monospace;
+                font-size: 11px;
             }}
         """)
         self.details_textbox.setText("Click 'Review and Truncate Duplicates' to scan the PDF...")
@@ -2933,13 +2974,13 @@ class DeduplicatePDFDialog(QDialog):
         b_layout.setSpacing(1)
 
         t_lbl = NeoLabel(title, badge)
-        t_lbl.setFont(QFont("Segoe UI", 8, QFont.Bold))
-        t_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        t_lbl.setFont(font_manager.create_qfont("display", size=8, weight=QFont.Bold))
+        t_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Grotesk', sans-serif; font-weight: bold; letter-spacing: 0.3px;")
         b_layout.addWidget(t_lbl)
 
         v_lbl = NeoLabel(val, badge)
-        v_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        v_lbl.setStyleSheet("color: #000000; border: none; background: transparent;")
+        v_lbl.setFont(font_manager.create_qfont("mono", size=11, weight=QFont.Bold))
+        v_lbl.setStyleSheet("color: #000000; border: none; background: transparent; font-family: 'Space Mono', 'Consolas', monospace; font-size: 13px; font-weight: bold;")
         b_layout.addWidget(v_lbl)
 
         return badge, v_lbl

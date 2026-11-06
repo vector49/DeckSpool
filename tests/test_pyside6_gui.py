@@ -6,6 +6,7 @@ import queue
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import numpy as np
 
 from PySide6.QtWidgets import QApplication
@@ -502,6 +503,43 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertIn("#1a1a24", comp_card.styleSheet())
         self.assertIn("#ffffff", comp_card.styleSheet())
         comp_dialog.destroy()
+
+    def test_font_hierarchy_applied(self):
+        """Verify Neo-Brutalist typography hierarchy is properly applied across widgets."""
+        from yt2pdf.font_manager import font_manager
+        self.assertTrue(font_manager.is_loaded)
+
+        # 1. Display Font (Space Grotesk)
+        self.assertIn("Space Grotesk", self.gui.title_label.font().family())
+        self.assertIn("Space Grotesk", self.gui.sub_lbl.font().family())
+        self.assertIn("Space Grotesk", self.gui.start_btn.font().family())
+        self.assertIn("Space Grotesk", self.gui.preview_title_lbl.font().family())
+
+        # 2. Body Font (Plus Jakarta Sans)
+        self.assertIn("Plus Jakarta Sans", self.gui.input_label.font().family())
+        self.assertIn("Plus Jakarta Sans", self.gui.output_label.font().family())
+        self.assertIn("Plus Jakarta Sans", self.gui.status_label.font().family())
+        self.assertIn("Plus Jakarta Sans", self.gui.footer_lbl.font().family())
+
+        # 3. Monospace Font (Space Mono)
+        self.assertIn("Space Mono", self.gui.interval_val_lbl.font().family())
+        self.assertIn("Space Mono", self.gui.val_time.font().family())
+        self.assertIn("Space Mono", self.gui.val_speed.font().family())
+        self.assertIn("Space Mono", self.gui.val_slides.font().family())
+        self.assertIn("Space Mono", self.gui.val_eta.font().family())
+        self.assertIn("Space Mono", self.gui.custom_box_entry.font().family())
+
+        # 4. Monospace badge dimensions prevent clipping
+        self.assertEqual(self.gui.interval_val_lbl.width(), 64)
+        self.assertEqual(self.gui.interval_val_lbl.height(), 26)
+
+        # 5. Fonts remain consistent across theme toggling
+        self.gui.toggle_theme()
+        self.gui.update_idletasks()
+        self.assertIn("Space Grotesk", self.gui.title_label.font().family())
+        self.assertIn("Plus Jakarta Sans", self.gui.input_label.font().family())
+        self.assertIn("Space Mono", self.gui.interval_val_lbl.font().family())
+        self.gui.toggle_theme()
 
 
 if __name__ == "__main__":
