@@ -331,7 +331,7 @@ class NeoLabel(QLabel):
             self.setFont(font_manager.create_qfont("body", size=10, weight=QFont.Bold))
         else:
             self.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.setStyleSheet("color: #000000; font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;")
+        self.setStyleSheet("color: #000000; background: transparent; font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;")
 
     def cget(self, attribute_name: str) -> Any:
         if attribute_name == "text":
@@ -343,7 +343,7 @@ class NeoLabel(QLabel):
             self.setText(str(kwargs["text"]))
         if "text_color" in kwargs:
             color = kwargs["text_color"]
-            self.setStyleSheet(f"color: {color};")
+            self.setStyleSheet(f"color: {color}; background: transparent; font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;")
 
 
 class NeoButton(QPushButton):
@@ -1017,6 +1017,7 @@ class NeoCardHeader(QWidget):
 
     def __init__(self, title: str, badge_color: str = COLOR_NEO_YELLOW, parent=None, theme: Optional[NeoTheme] = None):
         super().__init__(parent)
+        self.setStyleSheet("background: transparent;")
         self._theme = theme or get_current_theme()
         self._badge_color = badge_color
         self._title = title
@@ -1028,6 +1029,7 @@ class NeoCardHeader(QWidget):
 
         # Retro Window Control Dots
         self.dots_box = QWidget(self)
+        self.dots_box.setStyleSheet("background: transparent;")
         dots_layout = QHBoxLayout(self.dots_box)
         dots_layout.setContentsMargins(0, 0, 0, 0)
         dots_layout.setSpacing(5)
@@ -1061,6 +1063,9 @@ class NeoCardHeader(QWidget):
 
     def set_theme(self, theme: NeoTheme):
         self._theme = theme
+        self.setStyleSheet("background: transparent;")
+        if hasattr(self, "dots_box"):
+            self.dots_box.setStyleSheet("background: transparent;")
         for dot in self._dots:
             col = dot.property("dot_col")
             dot.setStyleSheet(f"""
@@ -1190,7 +1195,8 @@ class YT2PDFApp(QMainWindow):
 
     def _setup_root_container(self):
         self.root_widget = QWidget(self)
-        self.root_widget.setStyleSheet(f"background-color: {self.theme.canvas_bg};")
+        self.root_widget.setObjectName("root_widget")
+        self.root_widget.setStyleSheet(f"QWidget#root_widget {{ background-color: {self.theme.canvas_bg}; }}")
         self.setCentralWidget(self.root_widget)
 
         self.root_layout = QVBoxLayout(self.root_widget)
@@ -2147,6 +2153,7 @@ class YT2PDFApp(QMainWindow):
         self.last_generated_pdf = ""
         self._set_processing_ui_state(True)
         self.cancel_event.clear()
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         self.status_label.setText("Starting extraction pipeline...")
         self.progress_bar.configure(progress_color=COLOR_NEO_GREEN)
         self.progress_bar.set(0.0)
@@ -2269,6 +2276,7 @@ class YT2PDFApp(QMainWindow):
             self.header_view_pdf_btn.setEnabled(True)
 
         self.val_eta.setText("Finished")
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         self.status_label.setText(f"Complete — {slides_count} unique slides compiled into PDF!")
         self.progress_bar.set(1.0)
 
@@ -2376,7 +2384,7 @@ class YT2PDFApp(QMainWindow):
         # Window & Root background
         self.setStyleSheet(f"QMainWindow {{ background-color: {t.canvas_bg}; }}")
         if hasattr(self, "root_widget"):
-            self.root_widget.setStyleSheet(f"background-color: {t.canvas_bg};")
+            self.root_widget.setStyleSheet(f"QWidget#root_widget {{ background-color: {t.canvas_bg}; }}")
 
         # Header elements
         if hasattr(self, "title_label"):
@@ -2525,8 +2533,8 @@ class YT2PDFApp(QMainWindow):
             """)
         if hasattr(self, "status_label"):
             curr_ss = self.status_label.styleSheet()
-            if COLOR_NEO_RED not in curr_ss and t.red not in curr_ss:
-                self.status_label.setStyleSheet(f"color: {t.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
+            color = t.red if (COLOR_NEO_RED in curr_ss or t.red in curr_ss) else t.text
+            self.status_label.setStyleSheet(f"color: {color}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         if hasattr(self, "progress_bar"):
             self.progress_bar.set_theme(t)
 
@@ -2577,7 +2585,7 @@ class YT2PDFApp(QMainWindow):
         self.progress_bar.set(0.0)
         self.val_eta.setText("--:--")
         self.status_label.setText("Error occurred during extraction.")
-        self.status_label.setStyleSheet(f"color: {COLOR_NEO_RED};")
+        self.status_label.setStyleSheet(f"color: {self.theme.red}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         QMessageBox.critical(self, "Extraction Error", f"An error occurred during extraction:\n\n{error_message}")
 
     def _handle_cancellation(self):
@@ -2585,6 +2593,7 @@ class YT2PDFApp(QMainWindow):
         self.progress_bar.configure(progress_color="#ffffff")
         self.progress_bar.set(0.0)
         self.val_eta.setText("--:--")
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         self.status_label.setText("Extraction cancelled by user.")
         _show_info(self, "Cancelled", "Video extraction was stopped.")
 
@@ -3228,6 +3237,7 @@ class DeduplicatePDFDialog(QDialog):
         self.open_pdf_btn.setEnabled(False)
         self.open_folder_btn.setEnabled(False)
 
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         self.status_label.setText("Reading document pages...")
         self.progress_bar.configure(progress_color=self.theme.green)
         self.progress_bar.set(0.0)
@@ -3284,6 +3294,7 @@ class DeduplicatePDFDialog(QDialog):
         self.cancel_event.set()
         self.progress_bar.configure(progress_color=self.theme.entry_bg)
         self.progress_bar.set(0.0)
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         self.status_label.setText("Cancelling duplicate review...")
         self.cancel_btn.setEnabled(False)
 
@@ -3293,6 +3304,7 @@ class DeduplicatePDFDialog(QDialog):
         self.run_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.progress_bar.set(1.0)
+        self.status_label.setStyleSheet(f"color: {self.theme.text}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
 
         # Update metrics
         self.lbl_total.setText(str(result.total_pages))
@@ -3340,7 +3352,7 @@ class DeduplicatePDFDialog(QDialog):
         self.progress_bar.configure(progress_color=self.theme.entry_bg)
         self.progress_bar.set(0.0)
         self.status_label.setText("Error occurred during review.")
-        self.status_label.setStyleSheet(f"color: {COLOR_NEO_RED};")
+        self.status_label.setStyleSheet(f"color: {self.theme.red}; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
         QMessageBox.critical(self, "Deduplication Error", f"An error occurred while reviewing the PDF:\n\n{err_msg}")
 
     def _on_open_pdf(self):
