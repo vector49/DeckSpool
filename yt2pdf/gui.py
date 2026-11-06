@@ -68,6 +68,7 @@ from yt2pdf.downloader import VideoDownloader, sanitize_filename, clean_file_pat
 from yt2pdf.worker import ExtractionWorker
 from yt2pdf.deduplicator import deduplicate_pdf, DeduplicationResult
 from yt2pdf.font_manager import font_manager
+from yt2pdf.backend_console import backend_console_manager, BackEndConsoleWindow
 
 logger = logging.getLogger(__name__)
 
@@ -1118,6 +1119,7 @@ class YT2PDFApp(QMainWindow):
         self._transition_overlay: Optional[QLabel] = None
         self._opacity_effect: Optional[QGraphicsOpacityEffect] = None
         self._theme_anim: Optional[QPropertyAnimation] = None
+        self.backend_console: Optional[BackEndConsoleWindow] = None
 
         # Build UI Hierarchy
         self._setup_root_container()
@@ -1148,6 +1150,9 @@ class YT2PDFApp(QMainWindow):
             self._transition_overlay.deleteLater()
             self._transition_overlay = None
             self._opacity_effect = None
+        if hasattr(self, "backend_console") and self.backend_console:
+            self.backend_console.close_and_cleanup()
+            self.backend_console = None
         self.close()
 
     def closeEvent(self, event):
@@ -1160,6 +1165,9 @@ class YT2PDFApp(QMainWindow):
             self._transition_overlay.deleteLater()
             self._transition_overlay = None
             self._opacity_effect = None
+        if hasattr(self, "backend_console") and self.backend_console:
+            self.backend_console.close_and_cleanup()
+            self.backend_console = None
         event.accept()
 
     def resizeEvent(self, event):
@@ -1807,6 +1815,7 @@ class YT2PDFApp(QMainWindow):
         footer = QWidget(self.root_widget)
         f_layout = QHBoxLayout(footer)
         f_layout.setContentsMargins(4, 2, 4, 2)
+        f_layout.setSpacing(10)
 
         self.footer_lbl = NeoLabel("YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced", footer)
         self.footer_lbl.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Bold))
@@ -1814,7 +1823,43 @@ class YT2PDFApp(QMainWindow):
         f_layout.addWidget(self.footer_lbl)
         f_layout.addStretch()
 
+        # Back-End Console Toggle Button
+        self.backend_btn = NeoButton(
+            "Back-End",
+            bg_color=self.theme.lilac,
+            hover_color=self.theme.lilac_hover,
+            height=26,
+            font_size=11,
+            parent=footer,
+            theme=self.theme,
+        )
+        self.backend_btn.setFixedWidth(82)
+        self.backend_btn.setToolTip("Toggle Back-End Terminal Console")
+        self.backend_btn.clicked.connect(self._on_toggle_backend_console)
+        f_layout.addWidget(self.backend_btn)
+
         self.root_layout.addWidget(footer)
+
+    def _on_toggle_backend_console(self):
+        """Toggles the single instance of the Back-End terminal console window."""
+        if self.backend_console is None:
+            self.backend_console = backend_console_manager.get_window(parent=self)
+            self.backend_console.set_visibility_callback(self._on_backend_visibility_changed)
+
+        is_visible = self.backend_console.toggle_visibility()
+        self._on_backend_visibility_changed(is_visible)
+
+    def _on_backend_visibility_changed(self, is_visible: bool):
+        """Updates Back-End button appearance when console visibility toggles."""
+        if not hasattr(self, "backend_btn"):
+            return
+        t = getattr(self, "theme", LIGHT_THEME)
+        if is_visible:
+            self.backend_btn.set_colors(t.green, t.green_hover)
+            self.backend_btn.setToolTip("Click to hide Back-End Console")
+        else:
+            self.backend_btn.set_colors(t.lilac, t.lilac_hover)
+            self.backend_btn.setToolTip("Click to show Back-End Console")
 
     # ---------------- UI Event Handlers ----------------
 
@@ -2518,6 +2563,13 @@ class YT2PDFApp(QMainWindow):
         # Footer
         if hasattr(self, "footer_lbl"):
             self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
+        if hasattr(self, "backend_btn"):
+            is_visible = bool(self.backend_console and self.backend_console.isVisible())
+            if is_visible:
+                self.backend_btn.set_colors(t.green, t.green_hover)
+            else:
+                self.backend_btn.set_colors(t.lilac, t.lilac_hover)
+            self.backend_btn.set_theme(t)
 
     def _handle_error(self, error_message: str):
         self._set_processing_ui_state(False)

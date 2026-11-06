@@ -579,6 +579,59 @@ class TestPySide6GUI(unittest.TestCase):
         icon = self.gui.theme_toggle_btn.icon()
         self.assertFalse(icon.isNull(), "Theme toggle button should load valid icon for sun")
 
+    def test_backend_console_toggle_and_history(self):
+        """Verify Back-End toggle button, singleton console window, and session history preservation."""
+        import logging
+        from yt2pdf.backend_console import backend_console_manager
+
+        # 1. Back-End button exists in footer
+        self.assertTrue(hasattr(self.gui, "backend_btn"), "Footer should contain backend_btn")
+        self.assertEqual(self.gui.backend_btn.text(), "Back-End")
+        self.assertFalse(self.gui.backend_console and self.gui.backend_console.isVisible())
+
+        # 2. Emit a log prior to opening window
+        test_logger = logging.getLogger("yt2pdf.test_runner")
+        test_logger.info("Session telemetry entry before console was opened")
+        self.gui.update_idletasks()
+
+        # 3. Click 1: Opens console
+        self.gui.backend_btn.click()
+        self.gui.update_idletasks()
+        console = self.gui.backend_console
+        self.assertIsNotNone(console, "Console window should be instantiated")
+        self.assertTrue(console.isVisible(), "Console window should be visible after click 1")
+        self.assertEqual(console.width(), 720)
+        self.assertEqual(console.height(), 450)
+
+        # Verify historical log is present in console text
+        plain_text = console.console_text.toPlainText()
+        self.assertIn("Session telemetry entry before console was opened", plain_text)
+
+        # 4. Emit a log while window is open
+        test_logger.warning("Live telemetry entry during open console")
+        self.gui.update_idletasks()
+        plain_text_updated = console.console_text.toPlainText()
+        self.assertIn("Live telemetry entry during open console", plain_text_updated)
+
+        # 5. Click 2: Hides console (toggle)
+        self.gui.backend_btn.click()
+        self.gui.update_idletasks()
+        self.assertFalse(console.isVisible(), "Console should be hidden after click 2")
+
+        # 6. Click 3: Re-opens same instance with both logs preserved
+        self.gui.backend_btn.click()
+        self.gui.update_idletasks()
+        self.assertTrue(console.isVisible(), "Console should be re-opened")
+        self.assertIs(self.gui.backend_console, console, "Should reuse the singleton window instance")
+        self.assertIn("Session telemetry entry before console was opened", console.console_text.toPlainText())
+        self.assertIn("Live telemetry entry during open console", console.console_text.toPlainText())
+
+        # 7. Native window close [X] hides rather than destroys
+        console.close()
+        self.gui.update_idletasks()
+        self.assertFalse(console.isVisible(), "Closing console window should hide it")
+        self.assertFalse(console.isMinimized())
+
 
 if __name__ == "__main__":
     unittest.main()

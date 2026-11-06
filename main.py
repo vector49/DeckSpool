@@ -9,11 +9,9 @@ from yt2pdf.gui import YT2PDFApp
 
 def setup_logging():
     """Sets up console logging for the application."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    root = logging.getLogger()
+    if root.level > logging.INFO:
+        root.setLevel(logging.INFO)
 
 
 def main():
