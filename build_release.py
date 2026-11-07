@@ -797,7 +797,211 @@ def build_installer_executable(
 
 
 # -----------------------------------------------------------------------------
-# Variant 2 (Bonus): Inno Setup Script Generator & Compiler
+# Variant 2: Native Windows Installer (.msi) via WiX Toolset
+# -----------------------------------------------------------------------------
+def get_wix_tools() -> Dict[str, Path]:
+    """Locates or automatically prepares the WiX Toolset binaries (candle, light, heat)."""
+    # 1. Check PATH or standard installations
+    tools = {}
+    for name in ("candle", "light", "heat"):
+        found = shutil.which(name)
+        if found:
+            tools[name] = Path(found)
+
+    if len(tools) == 3:
+        return tools
+
+    # 2. Check local application cache (%LOCALAPPDATA%\WiXToolset\wix311)
+    local_app_data = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    wix_cache = Path(local_app_data) / "WiXToolset" / "wix311"
+    candle_exe = wix_cache / "candle.exe"
+    light_exe = wix_cache / "light.exe"
+    heat_exe = wix_cache / "heat.exe"
+
+    if candle_exe.exists() and light_exe.exists() and heat_exe.exists():
+        return {"candle": candle_exe, "light": light_exe, "heat": heat_exe}
+
+    # 3. Automatically download portable WiX binaries if not present
+    Log.info("WiX toolset not detected; downloading portable WiX 3.11 binaries (~34 MB)...")
+    wix_cache.mkdir(parents=True, exist_ok=True)
+    zip_path = wix_cache / "wix_binaries.zip"
+    url = "https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip"
+
+    import urllib.request
+    urllib.request.urlretrieve(url, zip_path)
+    Log.info("Extracting WiX compiler tools...")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(wix_cache)
+    if zip_path.exists():
+        zip_path.unlink()
+
+    Log.success("WiX compiler tools ready.")
+    return {"candle": candle_exe, "light": light_exe, "heat": heat_exe}
+
+
+def build_msi_installer(
+    app_dir: Path,
+    release_dir: Path,
+    icon_path: Path,
+    per_machine: bool = False,
+) -> Path:
+    """Builds a standard native Windows Installer (.msi) package for DeckSpool."""
+    Log.header("Packaging Variant 2: Native Windows Installer (.msi)")
+    release_dir.mkdir(parents=True, exist_ok=True)
+
+    tools = get_wix_tools()
+    wix_work_dir = BUILD_DIR / "wix_work"
+    wix_work_dir.mkdir(parents=True, exist_ok=True)
+
+    msi_name = f"{APP_NAME}-v{__version__}-windows-x64-installer.msi"
+    msi_path = release_dir / msi_name
+
+    # 1. Harvest files using heat.exe
+    files_wxs = wix_work_dir / "files.wxs"
+    Log.info(f"Harvesting directory tree for {app_dir.name}...")
+    cmd_heat = [
+        str(tools["heat"]),
+        "dir", str(app_dir.resolve()),
+        "-cg", "DeckSpoolComponents",
+        "-dr", "INSTALLFOLDER",
+        "-scom", "-sreg", "-sfrag", "-srd",
+        "-gg",
+        "-var", "var.SourceDir",
+        "-out", str(files_wxs),
+    ]
+    res_heat = subprocess.run(cmd_heat, capture_output=True, text=True)
+    if res_heat.returncode != 0:
+        raise RuntimeError(f"WiX heat.exe failed:\n{res_heat.stderr}")
+
+    # 2. License RTF
+    license_rtf = wix_work_dir / "License.rtf"
+    license_rtf.write_text(
+        r"{\rtf1\ansi\deff0 {\fonttbl {\f0 Segoe UI;}}\f0\fs20 "
+        rf"{APP_NAME} v{__version__}\par\par"
+        r"MIT License\par\par"
+        r"Permission is hereby granted, free of charge, to any person obtaining a copy "
+        r"of this software and associated documentation files, to deal in the Software "
+        r"without restriction, including without limitation the rights to use, copy, modify, "
+        r"merge, publish, distribute, sublicense, and/or sell copies of the Software.\par}",
+        encoding="utf-8"
+    )
+
+    # 3. Product.wxs definition
+    install_scope = "perMachine" if per_machine else "perUser"
+    root_folder = "ProgramFiles64Folder" if per_machine else "LocalAppDataFolder"
+
+    product_wxs = wix_work_dir / "Product.wxs"
+    product_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" 
+           Name="{APP_NAME}" 
+           Language="1033" 
+           Version="{__version__}" 
+           Manufacturer="{PUBLISHER}" 
+           UpgradeCode="E8175E26-3C60-4FB4-B4A4-71289196E5CA">
+    
+    <Package InstallerVersion="500" 
+             Compressed="yes" 
+             InstallScope="{install_scope}" 
+             Description="{APP_NAME} - {APP_DESCRIPTION}" 
+             Comments="DeckSpool Windows Installer Package" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="{icon_path.resolve()}" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/vector49/DeckSpool" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="{root_folder}">
+        <Directory Id="INSTALLFOLDER" Name="{APP_NAME}" />
+      </Directory>
+      
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="{APP_NAME}" />
+      </Directory>
+      
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationStartMenuShortcutComponent" Guid="A762194D-9345-4277-B178-500DCA96338B">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="{APP_NAME}"
+                  Description="{APP_DESCRIPTION}"
+                  Target="[INSTALLFOLDER]{APP_NAME}.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
+        <RemoveFolder Id="CleanUpShortcutsDir" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\\{APP_NAME}" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="ApplicationDesktopShortcutComponent" Guid="B827194D-9345-4277-B178-500DCA96338C">
+        <Shortcut Id="AppDesktopShortcut"
+                  Name="{APP_NAME}"
+                  Description="{APP_DESCRIPTION}"
+                  Target="[INSTALLFOLDER]{APP_NAME}.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon.ico" />
+        <RegistryValue Root="HKCU" Key="Software\\{APP_NAME}" Name="desktop_shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainApplication" Title="{APP_NAME}" Level="1">
+      <ComponentGroupRef Id="DeckSpoolComponents" />
+      <ComponentRef Id="ApplicationStartMenuShortcutComponent" />
+      <ComponentRef Id="ApplicationDesktopShortcutComponent" />
+    </Feature>
+
+    <UIRef Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="{license_rtf.resolve()}" />
+  </Product>
+</Wix>
+"""
+    product_wxs.write_text(product_xml, encoding="utf-8")
+
+    # 4. Compile with candle.exe
+    Log.info("Compiling WiX XML sources with candle...")
+    cmd_candle = [
+        str(tools["candle"]),
+        f"-dSourceDir={app_dir.resolve()}",
+        "-arch", "x64",
+        "-ext", "WixUIExtension",
+        str(product_wxs),
+        str(files_wxs),
+        "-out", str(wix_work_dir) + "\\",
+    ]
+    res_candle = subprocess.run(cmd_candle, capture_output=True, text=True)
+    if res_candle.returncode != 0:
+        raise RuntimeError(f"WiX candle.exe failed:\n{res_candle.stderr or res_candle.stdout}")
+
+    # 5. Link into single MSI with light.exe
+    Log.info("Linking MSI package with light...")
+    start_light = time.time()
+    cmd_light = [
+        str(tools["light"]),
+        "-ext", "WixUIExtension",
+        "-spdb",
+        "-sice:ICE69", "-sice:ICE91", "-sice:ICE38", "-sice:ICE64",
+        str(wix_work_dir / "Product.wixobj"),
+        str(wix_work_dir / "files.wixobj"),
+        "-out", str(msi_path),
+    ]
+    res_light = subprocess.run(cmd_light, capture_output=True, text=True)
+    if res_light.returncode != 0:
+        raise RuntimeError(f"WiX light.exe failed:\n{res_light.stderr or res_light.stdout}")
+
+    size_mb = msi_path.stat().st_size / (1024 * 1024)
+    elapsed = time.time() - start_light
+    Log.success(f"Windows MSI Installer created ({size_mb:.1f} MB, {elapsed:.1f}s): {msi_path}")
+    return msi_path
+
+
+# -----------------------------------------------------------------------------
+# Variant 3: Standalone Setup Installer Generator (.exe)
 # -----------------------------------------------------------------------------
 def generate_inno_setup_script(app_dir: Path, release_dir: Path, icon_path: Path) -> Path:
     """Generates an Inno Setup .iss compiler script and attempts compilation if ISCC is installed."""
@@ -884,7 +1088,7 @@ def generate_checksums(release_dir: Path) -> Path:
     entries = []
 
     for item in sorted(release_dir.glob("*")):
-        if item.is_file() and item.name != "SHA256SUMS.txt" and not item.name.endswith(".iss"):
+        if item.is_file() and item.name != "SHA256SUMS.txt" and not item.name.endswith(".iss") and not item.name.endswith(".wixpdb"):
             digest = compute_sha256(item)
             entries.append(f"{digest}  {item.name}")
 
@@ -903,7 +1107,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--clean", action="store_true", help="Clean build and dist directories before starting.")
     parser.add_argument("--recompile", action="store_true", help="Force recompilation of application core.")
     parser.add_argument("--skip-portable", action="store_true", help="Skip generating the portable ZIP archive.")
-    parser.add_argument("--skip-installer", action="store_true", help="Skip generating the standalone installer executable.")
+    parser.add_argument("--skip-msi", action="store_true", help="Skip generating the native Windows Installer (.msi).")
+    parser.add_argument("--skip-exe", action="store_true", help="Skip generating the standalone EXE installer.")
+    parser.add_argument("--per-machine", action="store_true", help="Install MSI to Program Files instead of user profile.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_RELEASE_DIR, help="Destination directory for release files.")
     parser.add_argument("--debug", action="store_true", help="Build with console window enabled for debugging.")
     return parser.parse_args()
@@ -937,15 +1143,20 @@ def main() -> int:
     if not args.skip_portable:
         portable_zip_path = build_portable_zip(app_dir, args.output_dir, force=args.recompile)
 
-    # 5. Generate Variant 2: Standalone Setup Installer (.exe)
+    # 5. Generate Variant 2: Native Windows Installer (.msi)
+    msi_path = None
+    if not args.skip_msi:
+        msi_path = build_msi_installer(app_dir, args.output_dir, icon_path, per_machine=args.per_machine)
+
+    # 6. Generate Variant 3: Standalone GUI Setup Installer (.exe)
     installer_exe_path = None
-    if not args.skip_installer:
+    if not args.skip_exe:
         installer_exe_path = build_installer_executable(app_dir, args.output_dir, icon_path)
 
-    # 6. Generate Inno Setup Script (.iss)
+    # 7. Generate Inno Setup Script (.iss)
     generate_inno_setup_script(app_dir, args.output_dir, icon_path)
 
-    # 7. Generate Checksums
+    # 8. Generate Checksums
     generate_checksums(args.output_dir)
 
     # 8. Print Summary
