@@ -1,0 +1,25 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.py text diff=python
+*.md text
+*.txt text
+*.json text
+*.yaml text
+*.yml text
+*.ini text
+
+# Explicitly declare binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.onnx binary
+*.docx binary
+*.zip binary
+*.tar.gz binary

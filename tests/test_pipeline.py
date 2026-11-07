@@ -369,7 +369,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
         from yt2pdf.human_detector import HumanNarratorDetector
 
         detector = HumanNarratorDetector()
-        narrator_img_path = r"C:/Users/Vignesh/.gemini/antigravity/brain/d1ba7920-44b2-4dfa-8534-9c4c4c5c56dc/.user_uploaded/media_1792502282083_adde35e6.png"
+        narrator_img_path = os.path.join(os.path.dirname(__file__), "fixtures", "narrator_sample.png")
 
         if os.path.exists(narrator_img_path):
             narrator_img = cv2.imread(narrator_img_path)
@@ -396,7 +396,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
         input_pdf_path = os.path.join(temp_dir, "presentation_with_speaker_cuts.pdf")
         output_pdf_path = os.path.join(temp_dir, "presentation_cleaned.pdf")
 
-        narrator_img_path = r"C:/Users/Vignesh/.gemini/antigravity/brain/d1ba7920-44b2-4dfa-8534-9c4c4c5c56dc/.user_uploaded/media_1792502282083_adde35e6.png"
+        narrator_img_path = os.path.join(os.path.dirname(__file__), "fixtures", "narrator_sample.png")
         if not os.path.exists(narrator_img_path):
             return
 
@@ -481,38 +481,38 @@ class TestPathAutoformatting(unittest.TestCase):
         from yt2pdf.downloader import clean_file_path, is_local_file_path
 
         # 1. Exact case from user prompt: Windows File Explorer "Copy as path"
-        raw_explorer = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        raw_explorer = r'"C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"'
         cleaned = clean_file_path(raw_explorer)
-        expected = r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"
+        expected = r"C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"
         self.assertEqual(cleaned, expected)
         self.assertTrue(is_local_file_path(cleaned))
 
         # 2. Single quotes
-        raw_single = r"'C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4'"
+        raw_single = r"'C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4'"
         self.assertEqual(clean_file_path(raw_single), expected)
 
         # 3. Surrounding whitespace with quotes
-        raw_padded = r'   "C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"   '
+        raw_padded = r'   "C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"   '
         self.assertEqual(clean_file_path(raw_padded), expected)
 
         # 4. Forward slashes with quotes
-        raw_fslash = r'"C:/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"'
+        raw_fslash = r'"C:/Users/TestUser/Videos/2026-10-30 10-34-09.mp4"'
         self.assertEqual(clean_file_path(raw_fslash), expected)
 
         # 5. file:/// URI (with encoded spaces %20)
-        raw_uri = "file:///C:/Users/Vignesh/Videos/2026-10-30%2010-34-09.mp4"
+        raw_uri = "file:///C:/Users/TestUser/Videos/2026-10-30%2010-34-09.mp4"
         self.assertEqual(clean_file_path(raw_uri), expected)
 
         # 6. PowerShell '&' call syntax
-        raw_ps = r'& "C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        raw_ps = r'& "C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"'
         self.assertEqual(clean_file_path(raw_ps), expected)
 
         # 7. Git Bash format on Windows
-        raw_git = "/c/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"
+        raw_git = "/c/Users/TestUser/Videos/2026-10-30 10-34-09.mp4"
         self.assertEqual(clean_file_path(raw_git), expected)
 
         # 8. WSL format on Windows
-        raw_wsl = "/mnt/c/Users/Vignesh/Videos/2026-10-30 10-34-09.mp4"
+        raw_wsl = "/mnt/c/Users/TestUser/Videos/2026-10-30 10-34-09.mp4"
         self.assertEqual(clean_file_path(raw_wsl), expected)
 
         # 9. Normal YouTube URL - should preserve URL structure
@@ -533,23 +533,23 @@ class TestPathAutoformatting(unittest.TestCase):
         app.update_idletasks()
 
         # Simulate user copying from File Explorer with double quotes
-        raw_explorer = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4"'
+        raw_explorer = r'"C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"'
         app._set_input_value(raw_explorer)
 
         # 1. Strips quotes
-        self.assertEqual(app.input_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09.mp4")
+        self.assertEqual(app.input_entry.get(), r"C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4")
         # 2. Auto-switches mode to Local File
         self.assertEqual(app.source_segmented.get(), SourceType.LOCAL_FILE.value)
         # 3. Auto-suggests destination PDF filename next to the video
-        self.assertEqual(app.output_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf")
+        self.assertEqual(app.output_entry.get(), r"C:\Users\TestUser\Videos\2026-10-30 10-34-09_slides.pdf")
 
         # Test deduplicate dialog with quoted path
-        raw_pdf = r'"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf"'
+        raw_pdf = r'"C:\Users\TestUser\Videos\2026-10-30 10-34-09_slides.pdf"'
         dialog = DeduplicatePDFDialog(app, default_pdf_path=raw_pdf)
         dialog.update_idletasks()
 
-        self.assertEqual(dialog.input_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides.pdf")
-        self.assertEqual(dialog.output_entry.get(), r"C:\Users\Vignesh\Videos\2026-10-30 10-34-09_slides_dedup.pdf")
+        self.assertEqual(dialog.input_entry.get(), r"C:\Users\TestUser\Videos\2026-10-30 10-34-09_slides.pdf")
+        self.assertEqual(dialog.output_entry.get(), r"C:\Users\TestUser\Videos\2026-10-30 10-34-09_slides_dedup.pdf")
 
         dialog.destroy()
         app.destroy()
