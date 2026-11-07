@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtGui import QFont, QTextCursor, QIcon, QKeySequence
 
-from deckspool.font_manager import font_manager
+from deckspool.font_manager import font_manager, get_app_icon
 
 
 # ==============================================================================
@@ -333,6 +333,7 @@ class BackEndConsoleWindow(QMainWindow):
         self._auto_scroll = True
 
         self.setWindowTitle("DeckSpool — Back-End Terminal Console")
+        self.setWindowIcon(get_app_icon())
         self.resize(720, 450)
         self.setMinimumSize(520, 320)
         self.setStyleSheet("""

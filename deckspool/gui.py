@@ -67,7 +67,7 @@ from deckspool.config import (
 from deckspool.downloader import VideoDownloader, sanitize_filename, clean_file_path, is_local_file_path
 from deckspool.worker import ExtractionWorker
 from deckspool.deduplicator import deduplicate_pdf, DeduplicationResult
-from deckspool.font_manager import font_manager
+from deckspool.font_manager import font_manager, get_app_icon, setup_windows_app_id
 from deckspool.backend_console import backend_console_manager, BackEndConsoleWindow
 
 logger = logging.getLogger(__name__)
@@ -1101,6 +1101,8 @@ class DeckSpoolApp(QMainWindow):
         if QApplication.instance() is None:
             self._app_ref = QApplication(sys.argv if sys.argv else [""])
 
+        setup_windows_app_id()
+
         super().__init__()
 
         self.theme = LIGHT_THEME
@@ -1109,6 +1111,14 @@ class DeckSpoolApp(QMainWindow):
         self._kpi_badges = []
 
         self.setWindowTitle("DeckSpool — Smart Presentation Slide Extractor & Lossless PDF Builder")
+
+        # Set application-wide and window-level icon for taskbar, Alt+Tab, and titlebar
+        app_icon = get_app_icon()
+        if not app_icon.isNull():
+            app_instance = QApplication.instance()
+            if app_instance is not None:
+                app_instance.setWindowIcon(app_icon)
+            self.setWindowIcon(app_icon)
         self.resize(1080, 660)
         self.setMinimumSize(980, 560)
         self.setStyleSheet(f"QMainWindow {{ background-color: {self.theme.canvas_bg}; }}")
@@ -2625,6 +2635,7 @@ class CompletionDialog(QDialog):
         self.theme = theme or getattr(parent, "theme", None) or get_current_theme()
         t = self.theme
         self.setWindowTitle("Extraction Complete")
+        self.setWindowIcon(get_app_icon())
         self.setFixedSize(540, 310)
         self.setModal(True)
         self.setStyleSheet(f"QDialog {{ background-color: {t.canvas_bg}; }}")
@@ -2730,6 +2741,7 @@ class DeduplicatePDFDialog(QDialog):
         self.theme = theme or getattr(parent, "theme", None) or get_current_theme()
         t = self.theme
         self.setWindowTitle("Review & Deduplicate PDF")
+        self.setWindowIcon(get_app_icon())
         self.resize(740, 620)
         self.setMinimumSize(600, 480)
         self.setModal(True)

@@ -675,6 +675,29 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertTrue(any("Binary payload to stderr buffer" in m for m in messages))
         self.assertTrue(any("[download] 50.0%" in m for m in messages))
 
+    def test_application_window_icon(self):
+        """Verify DeckSpool application and windows have multi-resolution QIcon loaded."""
+        from deckspool.font_manager import get_app_icon
+        from PySide6.QtWidgets import QApplication
+
+        app_icon = get_app_icon()
+        self.assertFalse(app_icon.isNull(), "Application icon must not be null")
+
+        # Verify multi-resolution sizes are available
+        for s in [16, 24, 32, 48, 64, 128, 256]:
+            pix = app_icon.pixmap(s, s)
+            self.assertFalse(pix.isNull(), f"Icon frame {s}x{s} must not be null")
+            self.assertGreater(pix.width(), 0)
+            self.assertGreater(pix.height(), 0)
+
+        # Verify main window has the icon set
+        self.assertFalse(self.gui.windowIcon().isNull(), "Main window icon must be set")
+
+        # Verify QApplication has the window icon set
+        app_inst = QApplication.instance()
+        if app_inst:
+            self.assertFalse(app_inst.windowIcon().isNull(), "QApplication windowIcon must be set")
+
 
 if __name__ == "__main__":
     unittest.main()

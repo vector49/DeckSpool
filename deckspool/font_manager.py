@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, Optional
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase, QIcon
 from PySide6.QtWidgets import QApplication
 
 
@@ -45,6 +45,65 @@ def get_asset_path(relative_path: str = "") -> Path:
 def get_fonts_dir() -> Path:
     """Return the absolute path to the fonts directory."""
     return get_asset_path("fonts")
+
+
+_CACHED_APP_ICON = None
+
+
+def setup_windows_app_id():
+    """Configures the Windows Application User Model ID (AUMID).
+
+    This ensures the Windows Shell taskbar binds DeckSpool windows to its own
+    application taskbar identity and uses the custom window icon instead of
+    generic Python or executable host icons.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from deckspool import __version__
+            app_id = f"vector49.deckspool.slideextractor.{__version__}"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        except Exception:
+            pass
+
+
+def get_app_icon() -> QIcon:
+    """Resolve and load the DeckSpool application icon with multi-resolution tiers.
+
+    Loads the icon from bundled assets (.ico / .png) with graceful fallbacks, ensuring
+    crisp rendering across window titlebars, Windows Taskbar, Alt+Tab switchers, and modals.
+
+    Returns:
+        QIcon: Fully populated multi-resolution application icon.
+    """
+    global _CACHED_APP_ICON
+    if _CACHED_APP_ICON is not None and not _CACHED_APP_ICON.isNull():
+        return _CACHED_APP_ICON
+
+    icon = QIcon()
+    ico_path = get_asset_path("app_icon.ico")
+    png_path = get_asset_path("app_icon.png")
+    logo_path = get_asset_path("deckspool_logo.png")
+
+    # 1. Prefer multi-resolution Windows ICO (contains 16, 24, 32, 48, 64, 128, 256)
+    if ico_path.exists():
+        icon.addFile(str(ico_path))
+
+    # 2. Add bundled PNG icons as supplementary / fallback layers
+    if png_path.exists():
+        icon.addFile(str(png_path))
+
+    if logo_path.exists():
+        icon.addFile(str(logo_path))
+
+    # 3. Fallback to repo root docs/images/deckspool_logo.png in development mode
+    if icon.isNull():
+        repo_logo = Path(__file__).resolve().parent.parent / "docs" / "images" / "deckspool_logo.png"
+        if repo_logo.exists():
+            icon.addFile(str(repo_logo))
+
+    _CACHED_APP_ICON = icon
+    return icon
 
 
 # Available Neo-Brutalist Font Presets

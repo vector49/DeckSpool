@@ -101,7 +101,9 @@ class Log:
 def resolve_logo_path() -> Optional[Path]:
     """Finds the source branding logo in standard project locations."""
     candidates = [
+        PROJECT_ROOT / "deckspool" / "assets" / "deckspool_logo.png",
         PROJECT_ROOT / "docs" / "images" / "deckspool_logo.png",
+        PROJECT_ROOT / "deckspool" / "assets" / "app_icon.png",
         PROJECT_ROOT / "Icon" / "DeckSpool Logo.png",
         PROJECT_ROOT / "docs" / "images" / "logo.png",
         PROJECT_ROOT / "deckspool" / "assets" / "logo.png",
@@ -116,6 +118,13 @@ def generate_application_icon(output_path: Path) -> Path:
     """Creates a multi-resolution Windows .ico file from the source PNG logo."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
+        return output_path
+
+    bundled_ico = PROJECT_ROOT / "deckspool" / "assets" / "app_icon.ico"
+    if bundled_ico.exists() and output_path != bundled_ico:
+        import shutil
+        shutil.copy2(bundled_ico, output_path)
+        Log.info(f"Using bundled icon from {bundled_ico.relative_to(PROJECT_ROOT)}")
         return output_path
 
     logo_path = resolve_logo_path()
@@ -206,8 +215,30 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         "scipy",
         "--hidden-import",
         "PySide6",
-        str(main_script),
     ])
+
+    # Exclude massive unrelated packages to prevent PyInstaller from spending 15+ minutes
+    # crawling PyTorch, pandas, matplotlib, IPython, etc., and to keep release size minimal.
+    excludes = [
+        "torch",
+        "torchvision",
+        "torchaudio",
+        "pandas",
+        "matplotlib",
+        "lxml",
+        "pikepdf",
+        "IPython",
+        "jupyter",
+        "pytest",
+        "unittest",
+        "tkinter",
+        "setuptools",
+        "pip",
+    ]
+    for ex in excludes:
+        pyinstaller_args.extend(["--exclude-module", ex])
+
+    pyinstaller_args.append(str(main_script))
 
     Log.info(f"Running PyInstaller onedir build for {APP_NAME} v{__version__}...")
     start_time = time.time()
@@ -221,12 +252,25 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         cwd=str(PROJECT_ROOT),
     )
 
-    # Stream output lines cleanly
+    # Stream output lines with active feedback so terminal never looks frozen
+    last_heartbeat = time.time()
     if process.stdout:
         for line in iter(process.stdout.readline, ""):
             line_str = line.strip()
-            if any(k in line_str for k in ("Building PKG", "Building EXE", "Building COLLECT", "completed successfully")):
+            if any(k in line_str for k in (
+                "Analyzing",
+                "Processing module hooks",
+                "Building PKG",
+                "Building EXE",
+                "Building COLLECT",
+                "completed successfully",
+                "checking Analysis",
+            )):
                 Log.info(line_str)
+                last_heartbeat = time.time()
+            elif time.time() - last_heartbeat > 5.0 and line_str:
+                Log.info(f"Compiling... {line_str[:65]}")
+                last_heartbeat = time.time()
 
     process.wait()
     if process.returncode != 0:
@@ -286,7 +330,7 @@ SUPPORT & DOCUMENTATION:
     Log.info(f"Compressing {app_dir.name} into {zip_path.name}...")
     start_time = time.time()
 
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
         total_files = sum(len(files) for _, _, files in os.walk(app_dir))
         count = 0
 
@@ -525,7 +569,14 @@ class SetupWizard(tk.Tk):
             self._register_uninstall(target_dir, exe_path)
 
             self._update_status("Installation complete!", 1.0)
-            self.after(200, self._on_install_success)
+            if not self.silent:
+                self.after(200, self._on_install_success)
+            else:
+                if self.launch_after.get() and exe_path.exists():
+                    try:
+                        subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
+                    except Exception:
+                        pass
 
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Installation Error", f"Installation failed:\n{str(e)}"))
@@ -699,6 +750,15 @@ def build_installer_executable(
         str(BUILD_DIR / "work_installer"),
         "--specpath",
         str(BUILD_DIR),
+        # Exclude heavy libraries from the installer wrapper so it builds in seconds
+        "--exclude-module", "PySide6",
+        "--exclude-module", "cv2",
+        "--exclude-module", "scipy",
+        "--exclude-module", "torch",
+        "--exclude-module", "torchvision",
+        "--exclude-module", "pandas",
+        "--exclude-module", "matplotlib",
+        "--exclude-module", "yt_dlp",
         "--add-data",
         f"{payload_zip};.",
         str(wizard_script),
@@ -706,10 +766,25 @@ def build_installer_executable(
 
     Log.info("Compiling standalone setup wizard executable...")
     start_time = time.time()
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
 
-    if res.returncode != 0:
-        raise RuntimeError(f"Failed to build installer executable:\n{res.stderr[-2000:]}")
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        cwd=str(PROJECT_ROOT),
+    )
+
+    if process.stdout:
+        for line in iter(process.stdout.readline, ""):
+            line_str = line.strip()
+            if any(k in line_str for k in ("Building PKG", "Building EXE", "completed successfully")):
+                Log.info(f"Installer: {line_str}")
+
+    process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(f"Failed to build installer executable with exit code {process.returncode}")
 
     compiled_installer = installer_dist_dir / f"{installer_exe_name}.exe"
     target_installer = release_dir / f"{installer_exe_name}.exe"
