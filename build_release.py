@@ -137,11 +137,16 @@ def generate_application_icon(output_path: Path) -> Path:
 # -----------------------------------------------------------------------------
 # Core Application Compilation (PyInstaller onedir)
 # -----------------------------------------------------------------------------
-def compile_core_application(icon_path: Path, debug: bool = False) -> Path:
+def compile_core_application(icon_path: Path, debug: bool = False, force: bool = False) -> Path:
     """Invokes PyInstaller to build the standalone onedir distribution."""
-    Log.header("Compiling Application Core with PyInstaller")
-
     app_dist_dir = DIST_DIR / APP_NAME
+    exe_path = app_dist_dir / f"{APP_NAME}.exe"
+
+    if exe_path.exists() and not force:
+        Log.info(f"Using existing compiled application core at {exe_path.relative_to(PROJECT_ROOT)}")
+        return app_dist_dir
+
+    Log.header("Compiling Application Core with PyInstaller")
     main_script = PROJECT_ROOT / "main.py"
 
     if not main_script.exists():
@@ -239,13 +244,18 @@ def compile_core_application(icon_path: Path, debug: bool = False) -> Path:
 # -----------------------------------------------------------------------------
 # Variant 1: Portable ZIP Archive Builder
 # -----------------------------------------------------------------------------
-def build_portable_zip(app_dir: Path, release_dir: Path) -> Path:
+def build_portable_zip(app_dir: Path, release_dir: Path, force: bool = False) -> Path:
     """Packages the compiled onedir application into a portable ZIP archive."""
     Log.header("Packaging Variant 1: Portable ZIP Archive")
 
     release_dir.mkdir(parents=True, exist_ok=True)
     zip_filename = f"{APP_NAME}-v{__version__}-windows-x64-portable.zip"
     zip_path = release_dir / zip_filename
+
+    if zip_path.exists() and not force:
+        size_mb = zip_path.stat().st_size / (1024 * 1024)
+        Log.info(f"Using existing portable ZIP archive ({size_mb:.1f} MB) at {zip_path.name}")
+        return zip_path
 
     if zip_path.exists():
         zip_path.unlink()
@@ -300,19 +310,8 @@ SUPPORT & DOCUMENTATION:
 # -----------------------------------------------------------------------------
 # Variant 2: Windows Setup Installer Generator
 # -----------------------------------------------------------------------------
-def generate_installer_wizard_script(
-    installer_src_dir: Path,
-    app_name: str,
-    version: str,
-    publisher: str,
-    description: str,
-) -> Path:
-    """Generates the Python script for the standalone Windows graphical setup wizard."""
-    installer_src_dir.mkdir(parents=True, exist_ok=True)
-    script_path = installer_src_dir / "setup_wizard.py"
-
-    wizard_code = f'''# -*- coding: utf-8 -*-
-"""Standalone Windows Setup Installer Wizard for {app_name}."""
+WIZARD_TEMPLATE = r'''# -*- coding: utf-8 -*-
+"""Standalone Windows Setup Installer Wizard for __APP_NAME__."""
 
 import os
 import sys
@@ -325,24 +324,24 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-APP_NAME = "{app_name}"
-APP_VERSION = "{version}"
-APP_PUBLISHER = "{publisher}"
-APP_DESC = "{description}"
+APP_NAME = "__APP_NAME__"
+APP_VERSION = "__APP_VERSION__"
+APP_PUBLISHER = "__APP_PUBLISHER__"
+APP_DESC = "__APP_DESC__"
 
-DEFAULT_INSTALL_DIR = os.path.expandvars(r"%LOCALAPPDATA%\\Programs\\{app_name}")
+DEFAULT_INSTALL_DIR = os.path.expandvars(rf"%LOCALAPPDATA%\Programs\{APP_NAME}")
 
 
 class SetupWizard(tk.Tk):
-    """Graphical Setup Wizard for installing {app_name}."""
+    """Graphical Setup Wizard for installing __APP_NAME__."""
 
-    def __init__(self, silent: bool = False):
+    def __init__(self, silent: bool = False, target_dir: str = None, no_launch: bool = False):
         super().__init__()
         self.silent = silent
-        self.install_dir = tk.StringVar(value=DEFAULT_INSTALL_DIR)
+        self.install_dir = tk.StringVar(value=target_dir if target_dir else DEFAULT_INSTALL_DIR)
         self.create_desktop_shortcut = tk.BooleanVar(value=True)
         self.create_startmenu_shortcut = tk.BooleanVar(value=True)
-        self.launch_after = tk.BooleanVar(value=True)
+        self.launch_after = tk.BooleanVar(value=not no_launch)
         self.is_installing = False
 
         if self.silent:
@@ -350,7 +349,7 @@ class SetupWizard(tk.Tk):
             self.after(100, self._run_silent_install)
             return
 
-        self.title(f"{{APP_NAME}} v{{APP_VERSION}} Setup")
+        self.title(f"{APP_NAME} v{APP_VERSION} Setup")
         self.geometry("540x380")
         self.resizable(False, False)
         self._center_window()
@@ -363,7 +362,7 @@ class SetupWizard(tk.Tk):
         h = self.winfo_height()
         x = (self.winfo_screenwidth() // 2) - (w // 2)
         y = (self.winfo_screenheight() // 2) - (h // 2)
-        self.geometry(f"{{w}}x{{h}}+{{x}}+{{y}}")
+        self.geometry(f"{w}x{h}+{x}+{y}")
 
     def _apply_styling(self):
         self.configure(bg="#F8FAFC")
@@ -374,13 +373,12 @@ class SetupWizard(tk.Tk):
             pass
 
     def _build_ui(self):
-        # Header banner
         header_frame = tk.Frame(self, bg="#0F172A", height=70)
         header_frame.pack(fill="x")
 
         title_lbl = tk.Label(
             header_frame,
-            text=f"Install {{APP_NAME}} v{{APP_VERSION}}",
+            text=f"Install {APP_NAME} v{APP_VERSION}",
             font=("Segoe UI", 14, "bold"),
             fg="#FFFFFF",
             bg="#0F172A"
@@ -396,11 +394,9 @@ class SetupWizard(tk.Tk):
         )
         sub_lbl.pack(anchor="w", padx=20, pady=(0, 10))
 
-        # Main container
         self.body_frame = tk.Frame(self, bg="#F8FAFC", padx=24, pady=16)
         self.body_frame.pack(fill="both", expand=True)
 
-        # Destination Folder Selector
         dest_lbl = tk.Label(
             self.body_frame,
             text="Destination Folder:",
@@ -419,8 +415,15 @@ class SetupWizard(tk.Tk):
         browse_btn = ttk.Button(path_row, text="Browse...", command=self._on_browse)
         browse_btn.pack(side="right")
 
-        # Shortcut Options
-        opts_frame = tk.LabelFrame(self.body_frame, text=" Shortcuts & Integration ", bg="#F8FAFC", fg="#334155", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+        opts_frame = tk.LabelFrame(
+            self.body_frame,
+            text=" Shortcuts & Integration ",
+            bg="#F8FAFC",
+            fg="#334155",
+            font=("Segoe UI", 9, "bold"),
+            padx=10,
+            pady=8
+        )
         opts_frame.pack(fill="x", pady=(0, 12))
 
         cb_desktop = tk.Checkbutton(
@@ -450,14 +453,18 @@ class SetupWizard(tk.Tk):
         )
         cb_launch.pack(anchor="w", pady=2)
 
-        # Progress bar
         self.progress_bar = ttk.Progressbar(self.body_frame, mode="determinate")
         self.progress_bar.pack(fill="x", pady=(4, 4))
 
-        self.status_lbl = tk.Label(self.body_frame, text="Ready to install.", font=("Segoe UI", 8), bg="#F8FAFC", fg="#64748B")
+        self.status_lbl = tk.Label(
+            self.body_frame,
+            text="Ready to install.",
+            font=("Segoe UI", 8),
+            bg="#F8FAFC",
+            fg="#64748B"
+        )
         self.status_lbl.pack(anchor="w")
 
-        # Action Buttons
         btn_frame = tk.Frame(self, bg="#E2E8F0", height=48)
         btn_frame.pack(fill="x", side="bottom")
 
@@ -490,12 +497,11 @@ class SetupWizard(tk.Tk):
             target_dir = Path(self.install_dir.get().strip())
             target_dir.mkdir(parents=True, exist_ok=True)
 
-            # Find embedded payload zip
             base_meipass = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
             payload_path = os.path.join(base_meipass, "app_payload.zip")
 
             if not os.path.exists(payload_path):
-                raise FileNotFoundError(f"Embedded payload not found at {{payload_path}}")
+                raise FileNotFoundError(f"Embedded payload not found at {payload_path}")
 
             self._update_status("Extracting application files...", 0.1)
 
@@ -503,35 +509,18 @@ class SetupWizard(tk.Tk):
                 all_members = zf.infolist()
                 total = len(all_members)
                 for i, member in enumerate(all_members):
-                    # Strip top-level directory if present (e.g. YT2PDF/file.ext -> file.ext)
-                    parts = Path(member.filename).parts
-                    if len(parts) > 1 and parts[0] == APP_NAME:
-                        dest_rel = Path(*parts[1:])
-                    else:
-                        dest_rel = Path(member.filename)
+                    zf.extract(member, target_dir)
+                    if i % 100 == 0 or i == total - 1:
+                        self._update_status(f"Extracting: {member.filename}", 0.1 + (0.7 * (i / max(1, total))))
 
-                    dest_full = target_dir / dest_rel
-                    if member.is_dir():
-                        dest_full.mkdir(parents=True, exist_ok=True)
-                    else:
-                        dest_full.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(member) as src, open(dest_full, "wb") as dst:
-                            shutil.copyfileobj(src, dst)
+            exe_path = target_dir / f"{APP_NAME}.exe"
 
-                    if i % 50 == 0 or i == total - 1:
-                        self._update_status(f"Extracting: {{dest_rel.name}}", 0.1 + (0.7 * (i / total)))
-
-            exe_path = target_dir / f"{{APP_NAME}}.exe"
-            icon_path = target_dir / "docs" / "images" / "deckspool_logo.png"
-
-            # Create Shortcuts
             self._update_status("Creating desktop and start menu shortcuts...", 0.85)
             if self.create_desktop_shortcut.get():
-                self._create_shortcut(exe_path, "Desktop", icon_path)
+                self._create_shortcut(exe_path, "Desktop")
             if self.create_startmenu_shortcut.get():
-                self._create_shortcut(exe_path, "Programs", icon_path)
+                self._create_shortcut(exe_path, "Programs")
 
-            # Register in Windows Add/Remove Programs
             self._update_status("Registering application in Windows...", 0.92)
             self._register_uninstall(target_dir, exe_path)
 
@@ -539,7 +528,7 @@ class SetupWizard(tk.Tk):
             self.after(200, self._on_install_success)
 
         except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Installation Error", f"Installation failed:\\n{{str(e)}}"))
+            self.after(0, lambda: messagebox.showerror("Installation Error", f"Installation failed:\n{str(e)}"))
             self.after(0, lambda: self.cancel_btn.configure(state="normal"))
 
     def _update_status(self, text: str, progress: float):
@@ -547,22 +536,21 @@ class SetupWizard(tk.Tk):
             self.after(0, lambda: self.status_lbl.configure(text=text))
             self.after(0, lambda: self.progress_bar.configure(value=progress * 100))
 
-    def _create_shortcut(self, target_exe: Path, location_type: str, icon_path: Path):
+    def _create_shortcut(self, target_exe: Path, location_type: str):
         try:
-            ps_cmd = f"""
-            $WshShell = New-Object -ComObject WScript.Shell;
-            $dir = [Environment]::GetFolderPath('{location_type}');
-            if ('{location_type}' -eq 'Programs') {{
-                $dir = Join-Path $dir '{APP_NAME}';
-                if (-not (Test-Path $dir)) {{ New-Item -ItemType Directory -Path $dir | Out-Null }};
-            }}
-            $s = $WshShell.CreateShortcut((Join-Path $dir '{APP_NAME}.lnk'));
-            $s.TargetPath = '{str(target_exe).replace('\\', '\\\\')}';
-            $s.WorkingDirectory = '{str(target_exe.parent).replace('\\', '\\\\')}';
-            $s.Description = '{APP_DESC}';
-            $s.Save();
-            """
-            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True, capture_output=True)
+            tgt = str(target_exe).replace("\\", "\\\\")
+            wdir = str(target_exe.parent).replace("\\", "\\\\")
+            ps_script = (
+                f"$Wsh = New-Object -ComObject WScript.Shell; "
+                f"$f = [Environment]::GetFolderPath('{location_type}'); "
+                f"if ('{location_type}' -eq 'Programs') {{ $f = Join-Path $f '{APP_NAME}'; if (-not (Test-Path $f)) {{ New-Item -ItemType Directory -Path $f | Out-Null }} }}; "
+                f"$s = $Wsh.CreateShortcut((Join-Path $f '{APP_NAME}.lnk')); "
+                f"$s.TargetPath = '{tgt}'; "
+                f"$s.WorkingDirectory = '{wdir}'; "
+                f"$s.Description = '{APP_DESC}'; "
+                f"$s.Save();"
+            )
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], check=True, capture_output=True)
         except Exception:
             pass
 
@@ -570,25 +558,24 @@ class SetupWizard(tk.Tk):
         try:
             uninst_bat = install_dir / "uninstall.bat"
             uninst_script = f"""@echo off
-title {{APP_NAME}} Uninstaller
+title {APP_NAME} Uninstaller
 echo ========================================================================
-echo Uninstalling {{APP_NAME}}...
+echo Uninstalling {APP_NAME}...
 echo ========================================================================
-powershell -NoProfile -Command "Remove-Item -Path \\"$([Environment]::GetFolderPath('Desktop'))\\{{APP_NAME}}.lnk\\" -Force -ErrorAction SilentlyContinue; Remove-Item -Path \\"$([Environment]::GetFolderPath('Programs'))\\{{APP_NAME}}\\" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{APP_NAME}}\\' -Recurse -Force -ErrorAction SilentlyContinue;"
+powershell -NoProfile -Command "Remove-Item -Path \\"$([Environment]::GetFolderPath('Desktop'))\\{APP_NAME}.lnk\\" -Force -ErrorAction SilentlyContinue; Remove-Item -Path \\"$([Environment]::GetFolderPath('Programs'))\\{APP_NAME}\\" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{APP_NAME}\\' -Recurse -Force -ErrorAction SilentlyContinue;"
 echo Shortcuts and registry entries removed.
 echo Cleaning up application files...
 cd ..
 timeout /t 1 /nobreak >nul
-rmdir /S /Q "\\"%~dp0\\""
-echo {{APP_NAME}} has been completely uninstalled.
+rmdir /S /Q "%~dp0"
+echo {APP_NAME} has been completely uninstalled.
 pause
 """
             uninst_bat.write_text(uninst_script, encoding="utf-8")
 
-            # Windows Registry Entry
-            key_path = fr"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{APP_NAME}}"
+            key_path = fr"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-                winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, f"{{APP_NAME}} - {{APP_DESC}}")
+                winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, f"{APP_NAME} - {APP_DESC}")
                 winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, APP_VERSION)
                 winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, APP_PUBLISHER)
                 winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(exe_path))
@@ -600,7 +587,7 @@ pause
             pass
 
     def _on_install_success(self):
-        exe_path = Path(self.install_dir.get().strip()) / f"{{APP_NAME}}.exe"
+        exe_path = Path(self.install_dir.get().strip()) / f"{APP_NAME}.exe"
         if self.launch_after.get() and exe_path.exists():
             try:
                 subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
@@ -608,7 +595,7 @@ pause
                 pass
 
         if not self.silent:
-            messagebox.showinfo("Installation Complete", f"{{APP_NAME}} v{{APP_VERSION}} was installed successfully!")
+            messagebox.showinfo("Installation Complete", f"{APP_NAME} v{APP_VERSION} was installed successfully!")
             self.destroy()
 
     def _run_silent_install(self):
@@ -620,14 +607,39 @@ pause
 
 def main():
     silent = ("--silent" in sys.argv) or ("/S" in sys.argv)
-    wizard = SetupWizard(silent=silent)
+    no_launch = ("--no-launch" in sys.argv)
+    target_dir = None
+    for i, arg in enumerate(sys.argv):
+        if arg in ("--dir", "-d", "/D") and i + 1 < len(sys.argv):
+            target_dir = sys.argv[i + 1]
+    wizard = SetupWizard(silent=silent, target_dir=target_dir, no_launch=no_launch)
     wizard.mainloop()
 
 
 if __name__ == "__main__":
     main()
 '''
-    script_path.write_text(wizard_code, encoding="utf-8")
+
+
+def generate_installer_wizard_script(
+    installer_src_dir: Path,
+    app_name: str,
+    version: str,
+    publisher: str,
+    description: str,
+) -> Path:
+    """Generates the Python script for the standalone Windows graphical setup wizard."""
+    installer_src_dir.mkdir(parents=True, exist_ok=True)
+    script_path = installer_src_dir / "setup_wizard.py"
+
+    code = (
+        WIZARD_TEMPLATE
+        .replace("__APP_NAME__", app_name)
+        .replace("__APP_VERSION__", version)
+        .replace("__APP_PUBLISHER__", publisher)
+        .replace("__APP_DESC__", description)
+    )
+    script_path.write_text(code, encoding="utf-8")
     return script_path
 
 
@@ -644,13 +656,18 @@ def build_installer_executable(
 
     # 1. Compress app into internal payload
     payload_zip = installer_work_dir / "app_payload.zip"
-    Log.info("Preparing internal application payload for installer...")
-    with zipfile.ZipFile(payload_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for root, _, files in os.walk(app_dir):
-            for file in files:
-                file_path = Path(root) / file
-                rel_path = file_path.relative_to(app_dir.parent)
-                zf.write(file_path, arcname=str(rel_path))
+    if not payload_zip.exists() or payload_zip.stat().st_size == 0:
+        Log.info("Preparing internal application payload for installer...")
+        start_payload = time.time()
+        with zipfile.ZipFile(payload_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+            for root, _, files in os.walk(app_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    rel_path = file_path.relative_to(app_dir)
+                    zf.write(file_path, arcname=str(rel_path))
+        Log.info(f"Payload prepared ({payload_zip.stat().st_size / (1024 * 1024):.1f} MB in {time.time() - start_payload:.1f}s)")
+    else:
+        Log.info(f"Reusing existing installer payload archive ({payload_zip.stat().st_size / (1024 * 1024):.1f} MB)")
 
     # 2. Generate setup wizard script
     wizard_script = generate_installer_wizard_script(
@@ -809,6 +826,7 @@ def generate_checksums(release_dir: Path) -> Path:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=f"Build and Package {APP_NAME} for Windows.")
     parser.add_argument("--clean", action="store_true", help="Clean build and dist directories before starting.")
+    parser.add_argument("--recompile", action="store_true", help="Force recompilation of application core.")
     parser.add_argument("--skip-portable", action="store_true", help="Skip generating the portable ZIP archive.")
     parser.add_argument("--skip-installer", action="store_true", help="Skip generating the standalone installer executable.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_RELEASE_DIR, help="Destination directory for release files.")
@@ -837,12 +855,12 @@ def main() -> int:
     generate_application_icon(icon_path)
 
     # 3. Compile Core Application (Onedir)
-    app_dir = compile_core_application(icon_path, debug=args.debug)
+    app_dir = compile_core_application(icon_path, debug=args.debug, force=args.recompile)
 
     # 4. Generate Variant 1: Portable ZIP
     portable_zip_path = None
     if not args.skip_portable:
-        portable_zip_path = build_portable_zip(app_dir, args.output_dir)
+        portable_zip_path = build_portable_zip(app_dir, args.output_dir, force=args.recompile)
 
     # 5. Generate Variant 2: Standalone Setup Installer (.exe)
     installer_exe_path = None

@@ -32,7 +32,7 @@ class TestPySide6GUI(unittest.TestCase):
 
     def test_window_geometry_and_title(self):
         """Test root container minimum and initial sizes and window title."""
-        self.assertIn("YT2PDF", self.gui.windowTitle())
+        self.assertIn("DeckSpool", self.gui.windowTitle())
         self.assertGreaterEqual(self.gui.minimumWidth(), 980)
         self.assertGreaterEqual(self.gui.minimumHeight(), 560)
 
@@ -42,6 +42,11 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertIsNotNone(self.gui.header_view_pdf_btn)
         self.assertEqual(self.gui.header_view_pdf_btn.text(), "View PDF")
         self.assertEqual(self.gui.header_dedup_btn.text(), "Deduplicate PDF")
+        self.assertIn("DeckSpool", self.gui.title_label.text())
+        self.assertIn("●", self.gui.title_label.text())
+        self.assertIn("A Project by", self.gui.footer_lbl.text())
+        self.assertIn("https://github.com/vector49", self.gui.footer_lbl.text())
+        self.assertTrue(self.gui.footer_lbl.openExternalLinks())
 
     def test_scroll_area_configuration(self):
         """Verify left column QScrollArea settings for smooth scrolling."""

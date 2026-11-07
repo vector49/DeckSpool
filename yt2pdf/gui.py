@@ -1108,7 +1108,7 @@ class YT2PDFApp(QMainWindow):
         self._slider_rows = []
         self._kpi_badges = []
 
-        self.setWindowTitle("YT2PDF — Smart Presentation Slide Extractor & Lossless PDF Builder")
+        self.setWindowTitle("DeckSpool — Smart Presentation Slide Extractor & Lossless PDF Builder")
         self.resize(1080, 660)
         self.setMinimumSize(980, 560)
         self.setStyleSheet(f"QMainWindow {{ background-color: {self.theme.canvas_bg}; }}")
@@ -1211,7 +1211,7 @@ class YT2PDFApp(QMainWindow):
         h_layout.setSpacing(12)
 
         # Title
-        self.title_label = NeoLabel("YT2PDF ✦", self.header_frame)
+        self.title_label = NeoLabel("DeckSpool ●", self.header_frame)
         self.title_label.setFont(font_manager.create_qfont("display", size=22, weight=QFont.Bold))
         self.title_label.setStyleSheet(f"color: {self.theme.text}; border: none; font-family: 'Space Grotesk', sans-serif; font-weight: bold;")
         h_layout.addWidget(self.title_label)
@@ -1825,9 +1825,9 @@ class YT2PDFApp(QMainWindow):
         f_layout.setContentsMargins(4, 2, 4, 2)
         f_layout.setSpacing(10)
 
-        self.footer_lbl = NeoLabel("YT2PDF ✦ NEO-BRUTALIST EDITION • Lossless img2pdf • SSIM Debounced", footer)
+        self.footer_lbl = NeoLabel("", footer)
         self.footer_lbl.setFont(font_manager.create_qfont("body", size=9, weight=QFont.Bold))
-        self.footer_lbl.setStyleSheet(f"color: {self.theme.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
+        self._update_footer_credits(self.theme)
         f_layout.addWidget(self.footer_lbl)
         f_layout.addStretch()
 
@@ -1847,6 +1847,19 @@ class YT2PDFApp(QMainWindow):
         f_layout.addWidget(self.backend_btn)
 
         self.root_layout.addWidget(footer)
+
+    def _update_footer_credits(self, theme=None):
+        """Updates the footer credits label with an accessible HTML hyperlink to vector49."""
+        if not hasattr(self, "footer_lbl"):
+            return
+        t = theme or getattr(self, "theme", LIGHT_THEME)
+        link_color = "#2563eb" if getattr(t, "name", "light") == "light" else "#60a5fa"
+        self.footer_lbl.setTextFormat(Qt.RichText)
+        self.footer_lbl.setOpenExternalLinks(True)
+        self.footer_lbl.setText(
+            f'A Project by <a href="https://github.com/vector49" style="color: {link_color}; text-decoration: underline;">vector49</a>'
+        )
+        self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
 
     def _on_toggle_backend_console(self):
         """Toggles the single instance of the Back-End terminal console window."""
@@ -2572,7 +2585,7 @@ class YT2PDFApp(QMainWindow):
 
         # Footer
         if hasattr(self, "footer_lbl"):
-            self.footer_lbl.setStyleSheet(f"color: {t.text}; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: bold;")
+            self._update_footer_credits(t)
         if hasattr(self, "backend_btn"):
             is_visible = bool(self.backend_console and self.backend_console.isVisible())
             if is_visible:
