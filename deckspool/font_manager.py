@@ -1,4 +1,4 @@
-"""Font management and asset resolution module for YT2PDF.
+"""Font management and asset resolution module for DeckSpool.
 
 Handles dynamic registration of custom fonts into Qt's QFontDatabase and provides
 bulletproof path resolution for both local development and PyInstaller bundled executables.
@@ -29,9 +29,9 @@ def get_asset_path(relative_path: str = "") -> Path:
     """
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         # Running inside PyInstaller bundled executable
-        base_dir = Path(sys._MEIPASS) / "yt2pdf" / "assets"
+        base_dir = Path(sys._MEIPASS) / "deckspool" / "assets"
         if not base_dir.exists():
-            # Alternative PyInstaller mapping (e.g. --add-data "yt2pdf/assets;assets")
+            # Alternative PyInstaller mapping (e.g. --add-data "deckspool/assets;assets")
             base_dir = Path(sys._MEIPASS) / "assets"
     else:
         # Running in local development mode

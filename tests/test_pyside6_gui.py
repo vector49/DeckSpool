@@ -1,4 +1,4 @@
-"""Unit and integration tests for PySide6 Qt6 GUI in YT2PDF."""
+"""Unit and integration tests for PySide6 Qt6 GUI in DeckSpool."""
 
 import os
 import sys
@@ -12,9 +12,9 @@ import numpy as np
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 
-from yt2pdf.gui import YT2PDFApp, DeduplicatePDFDialog, CompletionDialog
-from yt2pdf.config import SourceType, PresenterMaskMode, WorkerMessage, WorkerMessageType
-from yt2pdf.deduplicator import DeduplicationResult
+from deckspool.gui import DeckSpoolApp, YT2PDFApp, DeduplicatePDFDialog, CompletionDialog
+from deckspool.config import SourceType, PresenterMaskMode, WorkerMessage, WorkerMessageType
+from deckspool.deduplicator import DeduplicationResult
 
 
 class TestPySide6GUI(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestPySide6GUI(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication(sys.argv if sys.argv else [""])
 
     def setUp(self):
-        self.gui = YT2PDFApp()
+        self.gui = DeckSpoolApp()
         self.gui.update_idletasks()
 
     def tearDown(self):
@@ -384,7 +384,7 @@ class TestPySide6GUI(unittest.TestCase):
             # 4. Starting a new extraction clears previous output and disables View PDF again
             self.gui.input_entry.setText("dummy_video.mp4")
             with unittest.mock.patch.object(self.gui, "worker", create=True):
-                with unittest.mock.patch("yt2pdf.gui.ExtractionWorker"):
+                with unittest.mock.patch("deckspool.gui.ExtractionWorker"):
                     self.gui._on_start_clicked()
             self.assertFalse(self.gui.header_view_pdf_btn.isEnabled())
         finally:
@@ -490,7 +490,7 @@ class TestPySide6GUI(unittest.TestCase):
         self.gui.apply_theme(self.gui.theme.__class__(
             **{**self.gui.theme.__dict__, "name": "dark", "canvas_bg": "#121216", "card_bg": "#1a1a24", "border": "#ffffff"}
         ))
-        from yt2pdf.gui import DARK_THEME
+        from deckspool.gui import DARK_THEME
         self.gui.apply_theme(DARK_THEME)
         self.assertTrue(self.gui.is_dark_mode())
 
@@ -511,7 +511,7 @@ class TestPySide6GUI(unittest.TestCase):
 
     def test_font_hierarchy_applied(self):
         """Verify Neo-Brutalist typography hierarchy is properly applied across widgets."""
-        from yt2pdf.font_manager import font_manager
+        from deckspool.font_manager import font_manager
         self.assertTrue(font_manager.is_loaded)
 
         # 1. Display Font (Space Grotesk)
@@ -570,7 +570,7 @@ class TestPySide6GUI(unittest.TestCase):
 
     def test_minimal_sun_icon_loaded(self):
         """Verify the new minimal sun icon exists and is properly loaded in dark mode."""
-        assets_dir = os.path.join(os.path.dirname(__file__), "..", "yt2pdf", "assets")
+        assets_dir = os.path.join(os.path.dirname(__file__), "..", "deckspool", "assets")
         sun_icon_path = os.path.join(assets_dir, "sun_icon.png")
         self.assertTrue(os.path.exists(sun_icon_path), "sun_icon.png should exist in assets")
 
@@ -578,7 +578,7 @@ class TestPySide6GUI(unittest.TestCase):
         self.gui.apply_theme(self.gui.theme.__class__(
             **{**self.gui.theme.__dict__, "name": "dark"}
         ))
-        from yt2pdf.gui import DARK_THEME
+        from deckspool.gui import DARK_THEME
         self.gui.apply_theme(DARK_THEME)
         self.gui._update_theme_toggle_icon()
         icon = self.gui.theme_toggle_btn.icon()
@@ -587,7 +587,7 @@ class TestPySide6GUI(unittest.TestCase):
     def test_backend_console_toggle_and_history(self):
         """Verify Back-End toggle button, singleton console window, and session history preservation."""
         import logging
-        from yt2pdf.backend_console import backend_console_manager
+        from deckspool.backend_console import backend_console_manager
 
         # 1. Back-End button exists in footer
         self.assertTrue(hasattr(self.gui, "backend_btn"), "Footer should contain backend_btn")
@@ -595,7 +595,7 @@ class TestPySide6GUI(unittest.TestCase):
         self.assertFalse(self.gui.backend_console and self.gui.backend_console.isVisible())
 
         # 2. Emit a log prior to opening window
-        test_logger = logging.getLogger("yt2pdf.test_runner")
+        test_logger = logging.getLogger("deckspool.test_runner")
         test_logger.info("Session telemetry entry before console was opened")
         self.gui.update_idletasks()
 
@@ -641,7 +641,7 @@ class TestPySide6GUI(unittest.TestCase):
     def test_stream_interceptor_binary_buffer_and_ytdlp_compatibility(self):
         """Verify that sys.stdout.buffer and sys.stderr.buffer support binary writes and yt_dlp write_string."""
         from yt_dlp.utils._utils import write_string
-        from yt2pdf.backend_console import backend_console_manager
+        from deckspool.backend_console import backend_console_manager
 
         # 1. Ensure buffer attributes exist and have write method
         self.assertTrue(hasattr(sys.stdout, "buffer"), "sys.stdout must have buffer attribute")

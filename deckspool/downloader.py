@@ -155,7 +155,7 @@ class VideoDownloader:
         Using video-only stream (no audio) makes downloads significantly faster
         and enables reliable random-access frame seeking in OpenCV.
         """
-        temp_filename = f"yt2pdf_{os.getpid()}_{threading.get_ident()}"
+        temp_filename = f"deckspool_{os.getpid()}_{threading.get_ident()}"
         outtmpl = os.path.join(self.temp_dir, f"{temp_filename}.%(ext)s")
 
         def hook(d):

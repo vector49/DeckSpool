@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build and packaging script for YT2PDF.
+"""Build and packaging script for DeckSpool.
 
-Compiles the YT2PDF application into:
+Compiles the DeckSpool application into:
   1. A standalone Portable ZIP archive (extract & run, zero installation required).
   2. A self-contained Windows GUI Setup Installer (.exe) with desktop/start menu shortcuts,
      registry registration, and uninstaller.
@@ -41,13 +41,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
-    from yt2pdf import __author__, __version__
+    from deckspool import __author__, __version__
 except ImportError:
     __version__ = "1.0.0"
-    __author__ = "YT2PDF Team"
+    __author__ = "DeckSpool Team"
 
-APP_NAME = "YT2PDF"
-APP_TITLE = "YT2PDF - Presentation Slide Extractor"
+APP_NAME = "DeckSpool"
+APP_TITLE = "DeckSpool - Presentation Slide Extractor"
 APP_DESCRIPTION = "Extract unique presentation slides from YouTube videos and local files into clean, searchable PDFs."
 PUBLISHER = "DeckSpool"
 
@@ -104,7 +104,7 @@ def resolve_logo_path() -> Optional[Path]:
         PROJECT_ROOT / "docs" / "images" / "deckspool_logo.png",
         PROJECT_ROOT / "Icon" / "DeckSpool Logo.png",
         PROJECT_ROOT / "docs" / "images" / "logo.png",
-        PROJECT_ROOT / "yt2pdf" / "assets" / "logo.png",
+        PROJECT_ROOT / "deckspool" / "assets" / "logo.png",
     ]
     for p in candidates:
         if p.exists():
@@ -154,8 +154,8 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
 
     # Build data inclusion mappings (Source;Destination)
     datas = [
-        f"{PROJECT_ROOT / 'yt2pdf' / 'assets'};yt2pdf/assets",
-        f"{PROJECT_ROOT / 'yt2pdf' / 'models'};yt2pdf/models",
+        f"{PROJECT_ROOT / 'deckspool' / 'assets'};deckspool/assets",
+        f"{PROJECT_ROOT / 'deckspool' / 'models'};deckspool/models",
     ]
     if (PROJECT_ROOT / "docs" / "images").exists():
         datas.append(f"{PROJECT_ROOT / 'docs' / 'images'};docs/images")
@@ -195,7 +195,7 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         "--collect-all",
         "yt_dlp",
         "--collect-submodules",
-        "yt2pdf",
+        "deckspool",
         "--hidden-import",
         "img2pdf",
         "--hidden-import",
@@ -277,7 +277,7 @@ SYSTEM REQUIREMENTS:
 - Internet connection (for YouTube ingestion and streaming)
 
 SUPPORT & DOCUMENTATION:
-- Project Repository: https://github.com/vignesh/YT2PDF
+- Project Repository: https://github.com/vector49/DeckSpool
 ========================================================================
 """
     readme_path = app_dir / "PORTABLE_README.txt"

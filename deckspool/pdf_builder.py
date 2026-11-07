@@ -7,8 +7,8 @@ from typing import List, Optional, Callable
 import cv2
 import img2pdf
 
-from yt2pdf.detector import Slide
-from yt2pdf.roi import detect_canvas_crop_box
+from deckspool.detector import Slide
+from deckspool.roi import detect_canvas_crop_box
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def compile_slides_to_pdf(
         raise PDFBuilderError("No slides were extracted to compile into a PDF.")
 
     temp_image_paths: List[str] = []
-    temp_dir = tempfile.mkdtemp(prefix="yt2pdf_slides_")
+    temp_dir = tempfile.mkdtemp(prefix="deckspool_slides_")
 
     try:
         # Detect global canvas crop box across all slides if enabled

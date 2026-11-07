@@ -1,10 +1,10 @@
-"""Entry point for the YT2PDF application."""
+"""Entry point for the DeckSpool application."""
 
 import sys
 import logging
 from PySide6.QtWidgets import QApplication
-from yt2pdf import __version__
-from yt2pdf.gui import YT2PDFApp
+from deckspool import __version__
+from deckspool.gui import DeckSpoolApp
 
 
 def setup_logging():
@@ -15,16 +15,16 @@ def setup_logging():
 
 
 def main():
-    """Starts the YT2PDF desktop GUI application."""
+    """Starts the DeckSpool desktop GUI application."""
     setup_logging()
-    logger = logging.getLogger("yt2pdf")
-    logger.info(f"Starting YT2PDF v{__version__}...")
+    logger = logging.getLogger("deckspool")
+    logger.info(f"Starting DeckSpool v{__version__}...")
 
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
 
-    window = YT2PDFApp()
+    window = DeckSpoolApp()
     window.show()
 
     try:

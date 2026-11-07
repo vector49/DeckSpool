@@ -8,9 +8,11 @@ import cv2
 import imagehash
 from PIL import Image
 
-from yt2pdf.config import ExtractionConfig
-from yt2pdf.roi import mask_player_chrome, mask_box, PresenterDetector
-from yt2pdf.human_detector import HumanNarratorDetector
+from deckspool.config import ExtractionConfig
+from deckspool.roi import mask_player_chrome, mask_box, PresenterDetector
+from deckspool.human_detector import HumanNarratorDetector
+
+
 
 logger = logging.getLogger(__name__)
 

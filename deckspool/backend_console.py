@@ -1,4 +1,4 @@
-"""In-memory Back-End Console and structured logging manager for YT2PDF.
+"""In-memory Back-End Console and structured logging manager for DeckSpool.
 
 Provides an OS-style terminal console window displaying live, structured telemetry
 and session history (log levels, detection events, timestamps) with temporary in-memory
@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtGui import QFont, QTextCursor, QIcon, QKeySequence
 
-from yt2pdf.font_manager import font_manager
+from deckspool.font_manager import font_manager
 
 
 # ==============================================================================
@@ -332,7 +332,7 @@ class BackEndConsoleWindow(QMainWindow):
         self._visibility_callback: Optional[Callable[[bool], None]] = None
         self._auto_scroll = True
 
-        self.setWindowTitle("YT2PDF — Back-End Terminal Console")
+        self.setWindowTitle("DeckSpool — Back-End Terminal Console")
         self.resize(720, 450)
         self.setMinimumSize(520, 320)
         self.setStyleSheet("""
@@ -532,7 +532,7 @@ class BackEndConsoleWindow(QMainWindow):
         if not entries:
             self.console_text.setHtml(
                 '<div style="color: #64748b; font-family: monospace;">'
-                '[YT2PDF Back-End Console Initialized — Ready for Extraction Session]'
+                '[DeckSpool Back-End Console Initialized — Ready for Extraction Session]'
                 '</div>'
             )
             return

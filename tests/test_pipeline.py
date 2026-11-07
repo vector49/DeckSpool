@@ -1,4 +1,4 @@
-"""Automated integration and unit tests for YT2PDF pipeline."""
+"""Automated integration and unit tests for DeckSpool pipeline."""
 
 import os
 import queue
@@ -8,14 +8,14 @@ import unittest
 import numpy as np
 import cv2
 
-from yt2pdf.config import ExtractionConfig, SourceType, PresenterMaskMode, WorkerMessageType
-from yt2pdf.roi import mask_player_chrome, mask_box, PresenterDetector, detect_canvas_crop_box
-from yt2pdf.detector import SlideDetector, compute_opencv_ssim
-from yt2pdf.pdf_builder import compile_slides_to_pdf
-from yt2pdf.worker import ExtractionWorker
+from deckspool.config import ExtractionConfig, SourceType, PresenterMaskMode, WorkerMessageType
+from deckspool.roi import mask_player_chrome, mask_box, PresenterDetector, detect_canvas_crop_box
+from deckspool.detector import SlideDetector, compute_opencv_ssim
+from deckspool.pdf_builder import compile_slides_to_pdf
+from deckspool.worker import ExtractionWorker
 
 
-class TestYT2PDFPipeline(unittest.TestCase):
+class TestDeckSpoolPipeline(unittest.TestCase):
     """Test suite for core components and synthetic end-to-end processing."""
 
     def test_ssim_calculation(self):
@@ -129,7 +129,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_synthetic_video_worker_pipeline(self):
         """Creates a synthetic video file, runs ExtractionWorker end-to-end, and verifies output PDF."""
-        temp_dir = tempfile.mkdtemp(prefix="yt2pdf_test_")
+        temp_dir = tempfile.mkdtemp(prefix="deckspool_test_")
         video_path = os.path.join(temp_dir, "test_presentation.mp4")
         pdf_path = os.path.join(temp_dir, "test_output.pdf")
 
@@ -196,7 +196,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_filename_sanitizer(self):
         """Verify filename sanitization removes forbidden OS characters."""
-        from yt2pdf.downloader import sanitize_filename
+        from deckspool.downloader import sanitize_filename
         dirty_title = 'My Video: Lecture #1 / Part 2? <Best> *Slides* | "HD"'
         clean_title = sanitize_filename(dirty_title)
         self.assertNotIn(":", clean_title)
@@ -232,8 +232,8 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_gui_instantiation(self):
         """Verify GUI loads without runtime or layout exceptions, and completion dialog works."""
-        from yt2pdf.gui import YT2PDFApp
-        app = YT2PDFApp()
+        from deckspool.gui import DeckSpoolApp
+        app = DeckSpoolApp()
         app.update_idletasks()
         self.assertIsNotNone(app.start_btn)
         self.assertIsNotNone(app.progress_bar)
@@ -262,7 +262,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
         self.assertIn("cancelled", app.status_label.cget("text").lower())
 
         # Test DeduplicatePDFDialog modal initialization
-        from yt2pdf.gui import DeduplicatePDFDialog
+        from deckspool.gui import DeduplicatePDFDialog
         dialog = DeduplicatePDFDialog(app, default_pdf_path="dummy_presentation.pdf")
         app.update_idletasks()
         self.assertIsNotNone(dialog.run_btn)
@@ -274,8 +274,8 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_deduplicate_slides_list(self):
         """Verify that repetitive slides across presentation are truncated, holding 1st appearance."""
-        from yt2pdf.detector import Slide
-        from yt2pdf.deduplicator import deduplicate_slides_list
+        from deckspool.detector import Slide
+        from deckspool.deduplicator import deduplicate_slides_list
         from PIL import Image
         import imagehash
 
@@ -312,9 +312,9 @@ class TestYT2PDFPipeline(unittest.TestCase):
         """Verify that deduplicate_pdf parses a PDF, identifies all duplicates, and produces a clean PDF."""
         import img2pdf
         import pypdfium2
-        from yt2pdf.deduplicator import deduplicate_pdf
+        from deckspool.deduplicator import deduplicate_pdf
 
-        temp_dir = tempfile.mkdtemp(prefix="yt2pdf_dedup_test_")
+        temp_dir = tempfile.mkdtemp(prefix="deckspool_dedup_test_")
         input_pdf_path = os.path.join(temp_dir, "raw_with_duplicates.pdf")
         output_pdf_path = os.path.join(temp_dir, "cleaned_unique.pdf")
 
@@ -366,7 +366,7 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_human_narrator_detector(self):
         """Verify that HumanNarratorDetector detects speaker camera cuts and ignores slides / corner PIP."""
-        from yt2pdf.human_detector import HumanNarratorDetector
+        from deckspool.human_detector import HumanNarratorDetector
 
         detector = HumanNarratorDetector()
         narrator_img_path = os.path.join(os.path.dirname(__file__), "fixtures", "narrator_sample.png")
@@ -390,9 +390,9 @@ class TestYT2PDFPipeline(unittest.TestCase):
         """Verify that deduplicate_pdf truncates full-human narrator pages from a PDF."""
         import img2pdf
         import pypdfium2
-        from yt2pdf.deduplicator import deduplicate_pdf
+        from deckspool.deduplicator import deduplicate_pdf
 
-        temp_dir = tempfile.mkdtemp(prefix="yt2pdf_narrator_test_")
+        temp_dir = tempfile.mkdtemp(prefix="deckspool_narrator_test_")
         input_pdf_path = os.path.join(temp_dir, "presentation_with_speaker_cuts.pdf")
         output_pdf_path = os.path.join(temp_dir, "presentation_cleaned.pdf")
 
@@ -446,8 +446,8 @@ class TestYT2PDFPipeline(unittest.TestCase):
 
     def test_presenter_split_screen_detection(self):
         """Verify that PresenterDetector detects 50/50 split screen layouts."""
-        from yt2pdf.roi import PresenterDetector, detect_canvas_crop_box, mask_box
-        from yt2pdf.config import PresenterMaskMode
+        from deckspool.roi import PresenterDetector, detect_canvas_crop_box, mask_box
+        from deckspool.config import PresenterMaskMode
 
         pd = PresenterDetector()
         # Mock 360p frame with 50/50 split (left slide, right speaker)
@@ -478,7 +478,7 @@ class TestPathAutoformatting(unittest.TestCase):
     """Test suite for path cleaning, quote stripping, and Explorer copy autoformatting."""
 
     def test_file_explorer_copied_path_autoformatting(self):
-        from yt2pdf.downloader import clean_file_path, is_local_file_path
+        from deckspool.downloader import clean_file_path, is_local_file_path
 
         # 1. Exact case from user prompt: Windows File Explorer "Copy as path"
         raw_explorer = r'"C:\Users\TestUser\Videos\2026-10-30 10-34-09.mp4"'
@@ -526,10 +526,10 @@ class TestPathAutoformatting(unittest.TestCase):
         self.assertFalse(is_local_file_path(quoted_yt))
 
     def test_gui_path_autoformatting(self):
-        from yt2pdf.gui import YT2PDFApp, DeduplicatePDFDialog
-        from yt2pdf.config import SourceType
+        from deckspool.gui import DeckSpoolApp, DeduplicatePDFDialog
+        from deckspool.config import SourceType
 
-        app = YT2PDFApp()
+        app = DeckSpoolApp()
         app.update_idletasks()
 
         # Simulate user copying from File Explorer with double quotes

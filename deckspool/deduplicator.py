@@ -11,9 +11,9 @@ import imagehash
 from PIL import Image
 import pypdfium2
 
-from yt2pdf.detector import Slide, compute_opencv_ssim, has_meaningful_structural_change
-from yt2pdf.human_detector import HumanNarratorDetector
-from yt2pdf.downloader import clean_file_path
+from deckspool.detector import Slide, compute_opencv_ssim, has_meaningful_structural_change
+from deckspool.human_detector import HumanNarratorDetector
+from deckspool.downloader import clean_file_path
 
 logger = logging.getLogger(__name__)
 

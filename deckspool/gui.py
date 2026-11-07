@@ -1,4 +1,4 @@
-"""PySide6 (Qt6) Modern Desktop GUI for YT2PDF application with signature Neo-Brutalist design."""
+"""PySide6 (Qt6) Modern Desktop GUI for DeckSpool application with signature Neo-Brutalist design."""
 
 import os
 import sys
@@ -57,18 +57,18 @@ from PySide6.QtGui import (
     QKeySequence,
 )
 
-from yt2pdf.config import (
+from deckspool.config import (
     ExtractionConfig,
     SourceType,
     PresenterMaskMode,
     WorkerMessage,
     WorkerMessageType,
 )
-from yt2pdf.downloader import VideoDownloader, sanitize_filename, clean_file_path, is_local_file_path
-from yt2pdf.worker import ExtractionWorker
-from yt2pdf.deduplicator import deduplicate_pdf, DeduplicationResult
-from yt2pdf.font_manager import font_manager
-from yt2pdf.backend_console import backend_console_manager, BackEndConsoleWindow
+from deckspool.downloader import VideoDownloader, sanitize_filename, clean_file_path, is_local_file_path
+from deckspool.worker import ExtractionWorker
+from deckspool.deduplicator import deduplicate_pdf, DeduplicationResult
+from deckspool.font_manager import font_manager
+from deckspool.backend_console import backend_console_manager, BackEndConsoleWindow
 
 logger = logging.getLogger(__name__)
 
@@ -1090,11 +1090,11 @@ def create_neo_card_header(title: str, badge_color: str = COLOR_NEO_YELLOW, pare
 
 
 # ==============================================================================
-# Main Application Window: YT2PDFApp
+# Main Application Window: DeckSpoolApp
 # ==============================================================================
 
-class YT2PDFApp(QMainWindow):
-    """Main application window for YT2PDF with Neo-Brutalist UI styling using PySide6 (Qt6)."""
+class DeckSpoolApp(QMainWindow):
+    """Main application window for DeckSpool with Neo-Brutalist UI styling using PySide6 (Qt6)."""
 
     def __init__(self):
         # Ensure a QApplication instance exists before window instantiation
@@ -3397,3 +3397,7 @@ class DeduplicatePDFDialog(QDialog):
                 subprocess.run(["xdg-open", folder])
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not open folder:\n{e}")
+
+
+# Backward-compatibility alias
+YT2PDFApp = DeckSpoolApp

@@ -1,4 +1,4 @@
-"""Unit tests for yt2pdf.font_manager and font assets using standard unittest."""
+"""Unit tests for deckspool.font_manager and font assets using standard unittest."""
 
 import os
 import unittest
@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QFontDatabase
 
-from yt2pdf.font_manager import (
+from deckspool.font_manager import (
     FontManager,
     font_manager,
     get_asset_path,

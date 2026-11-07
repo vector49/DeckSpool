@@ -9,16 +9,16 @@ import threading
 from typing import Optional
 import cv2
 
-from yt2pdf.config import (
+from deckspool.config import (
     ExtractionConfig,
     SourceType,
     WorkerMessage,
     WorkerMessageType,
 )
-from yt2pdf.downloader import VideoDownloader, DownloadCancelledError, VideoIngestionError, clean_file_path
-from yt2pdf.detector import SlideDetector
-from yt2pdf.pdf_builder import compile_slides_to_pdf, PDFBuilderError
-from yt2pdf.deduplicator import deduplicate_slides_list
+from deckspool.downloader import VideoDownloader, DownloadCancelledError, VideoIngestionError, clean_file_path
+from deckspool.detector import SlideDetector
+from deckspool.pdf_builder import compile_slides_to_pdf, PDFBuilderError
+from deckspool.deduplicator import deduplicate_slides_list
 
 logger = logging.getLogger(__name__)
 

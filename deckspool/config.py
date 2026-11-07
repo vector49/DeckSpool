@@ -1,4 +1,4 @@
-"""Configuration and shared data structures for YT2PDF."""
+"""Configuration and shared data structures for DeckSpool."""
 
 from dataclasses import dataclass, field
 from enum import Enum

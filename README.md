@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/images/deckspool_logo.png" alt="DeckSpool / YT2PDF Logo" width="160">
+  <img src="docs/images/deckspool_logo.png" alt="DeckSpool Logo" width="160">
 </p>
 
-<h1 align="center">YT2PDF (DeckSpool)</h1>
+<h1 align="center">DeckSpool</h1>
 
 <p align="center">
   <strong>Smart Presentation Slide Extractor & Lossless PDF Builder</strong><br>
@@ -19,7 +19,7 @@
 
 ## Overview
 
-**YT2PDF** is a desktop application built with Python and PySide6 (Qt6) that automatically detects and extracts unique presentation slides from YouTube URLs or local video files and compiles them into clean, lossless PDF documents.
+**DeckSpool** is a desktop application built with Python and PySide6 (Qt6) that automatically detects and extracts unique presentation slides from YouTube URLs or local video files and compiles them into clean, lossless PDF documents.
 
 It is designed to solve common video-to-slide pain points: animated bullet points, progressive handwriting, webcam overlays, video player bars, and speaker camera cutaways.
 
@@ -58,8 +58,8 @@ Ensure Python 3.10+ is installed on your system.
 
 ```bash
 # Clone the repository
-git clone https://github.com/vector49/YT2PDF.git
-cd YT2PDF
+git clone https://github.com/vector49/DeckSpool.git
+cd DeckSpool
 
 # Install dependencies
 pip install -r requirements.txt
@@ -106,7 +106,7 @@ python main.py
 ## Documentation
 
 - [Backend Architecture & Refactoring Specification](docs/specifications/backend_refactoring_spec.md)
-- [Benchmark Test Suite](docs/benchmarks/YT2PDF_Benchmark_Test_Suite.docx)
+- [Benchmark Test Suite](docs/benchmarks/DeckSpool_Benchmark_Test_Suite.docx)
 
 ---
 

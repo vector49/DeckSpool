@@ -5,7 +5,7 @@ from typing import Tuple, Optional, List
 import numpy as np
 import cv2
 
-from yt2pdf.config import PresenterMaskMode
+from deckspool.config import PresenterMaskMode
 
 logger = logging.getLogger(__name__)
 
