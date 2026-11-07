@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """Build and packaging script for DeckSpool.
 
-Compiles the DeckSpool application into:
-  1. A standalone Portable ZIP archive (extract & run, zero installation required).
-  2. A self-contained Windows GUI Setup Installer (.exe) with desktop/start menu shortcuts,
-     registry registration, and uninstaller.
-  3. An Inno Setup script (.iss) with automatic compilation if Inno Setup is installed.
-  4. Cryptographic SHA-256 checksums (SHA256SUMS.txt).
+Compiles the DeckSpool application into two official release deliverables:
+  1. Standalone Portable ZIP archive (extract & run, zero installation required).
+  2. Native Windows Installer (.msi) with interactive destination folder selection
+     ("Change..." directory browser), Start Menu integration (Windows Search indexing),
+     and optional Desktop shortcut checkboxes.
+  3. Cryptographic SHA-256 checksums (SHA256SUMS.txt).
 
 Usage:
   python build_release.py [options]
 
 Options:
   --clean           Remove previous build/dist artifacts before compiling.
+  --recompile       Force recompilation of application core.
   --skip-portable   Skip generating the portable ZIP archive.
-  --skip-installer  Skip generating the standalone installer executable.
+  --skip-msi        Skip generating the native Windows Installer (.msi).
+  --per-machine     Install MSI to Program Files instead of user profile.
   --output-dir DIR  Custom destination directory for release artifacts (default: dist/release).
   --debug           Build with console window enabled for troubleshooting.
 """
@@ -122,7 +124,6 @@ def generate_application_icon(output_path: Path) -> Path:
 
     bundled_ico = PROJECT_ROOT / "deckspool" / "assets" / "app_icon.ico"
     if bundled_ico.exists() and output_path != bundled_ico:
-        import shutil
         shutil.copy2(bundled_ico, output_path)
         Log.info(f"Using bundled icon from {bundled_ico.relative_to(PROJECT_ROOT)}")
         return output_path
@@ -135,7 +136,6 @@ def generate_application_icon(output_path: Path) -> Path:
         img = Image.open(logo_path).convert("RGBA")
     else:
         Log.warn("No logo image found; generating default fallback icon...")
-        # Create a clean high-res canvas with a geometric accent
         img = Image.new("RGBA", (256, 256), color=(26, 26, 26, 255))
 
     img.save(output_path, format="ICO", sizes=sizes)
@@ -217,8 +217,7 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         "PySide6",
     ])
 
-    # Exclude massive unrelated packages to prevent PyInstaller from spending 15+ minutes
-    # crawling PyTorch, pandas, matplotlib, IPython, etc., and to keep release size minimal.
+    # Exclude heavy unrelated packages to keep build time fast and release footprint compact
     excludes = [
         "torch",
         "torchvision",
@@ -252,7 +251,6 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         cwd=str(PROJECT_ROOT),
     )
 
-    # Stream output lines with active feedback so terminal never looks frozen
     last_heartbeat = time.time()
     if process.stdout:
         for line in iter(process.stdout.readline, ""):
@@ -286,11 +284,11 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
 
 
 # -----------------------------------------------------------------------------
-# Variant 1: Portable ZIP Archive Builder
+# Deliverable 1: Portable ZIP Archive Builder
 # -----------------------------------------------------------------------------
 def build_portable_zip(app_dir: Path, release_dir: Path, force: bool = False) -> Path:
     """Packages the compiled onedir application into a portable ZIP archive."""
-    Log.header("Packaging Variant 1: Portable ZIP Archive")
+    Log.header("Packaging Deliverable 1: Portable ZIP Archive")
 
     release_dir.mkdir(parents=True, exist_ok=True)
     zip_filename = f"{APP_NAME}-v{__version__}-windows-x64-portable.zip"
@@ -304,7 +302,7 @@ def build_portable_zip(app_dir: Path, release_dir: Path, force: bool = False) ->
     if zip_path.exists():
         zip_path.unlink()
 
-    # Create a quick-start README for portable users
+    # Create quick-start instructions for portable users
     readme_text = f"""========================================================================
 {APP_NAME} v{__version__} - Portable Release (Windows x64)
 {APP_DESCRIPTION}
@@ -312,16 +310,16 @@ Publisher: {PUBLISHER}
 ========================================================================
 
 QUICK START:
-1. Extract the contents of this ZIP file to any folder or USB drive.
-2. Double-click '{APP_NAME}.exe' to launch the application.
-3. No installation or administrator permissions are required.
+1. Extract the contents of this ZIP archive to any folder or portable drive.
+2. Double-click '{APP_NAME}.exe' to start using the application immediately.
+3. No installation or administrative permissions required.
 
 SYSTEM REQUIREMENTS:
 - Windows 10 (64-bit) or Windows 11
-- Internet connection (for YouTube ingestion and streaming)
+- Active Internet connection (for YouTube video stream downloading)
 
-SUPPORT & DOCUMENTATION:
-- Project Repository: https://github.com/vector49/DeckSpool
+PROJECT REPOSITORY:
+- https://github.com/vector49/DeckSpool
 ========================================================================
 """
     readme_path = app_dir / "PORTABLE_README.txt"
@@ -352,456 +350,11 @@ SUPPORT & DOCUMENTATION:
 
 
 # -----------------------------------------------------------------------------
-# Variant 2: Windows Setup Installer Generator
-# -----------------------------------------------------------------------------
-WIZARD_TEMPLATE = r'''# -*- coding: utf-8 -*-
-"""Standalone Windows Setup Installer Wizard for __APP_NAME__."""
-
-import os
-import sys
-import shutil
-import zipfile
-import threading
-import subprocess
-import winreg
-from pathlib import Path
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-
-APP_NAME = "__APP_NAME__"
-APP_VERSION = "__APP_VERSION__"
-APP_PUBLISHER = "__APP_PUBLISHER__"
-APP_DESC = "__APP_DESC__"
-
-DEFAULT_INSTALL_DIR = os.path.expandvars(rf"%LOCALAPPDATA%\Programs\{APP_NAME}")
-
-
-class SetupWizard(tk.Tk):
-    """Graphical Setup Wizard for installing __APP_NAME__."""
-
-    def __init__(self, silent: bool = False, target_dir: str = None, no_launch: bool = False):
-        super().__init__()
-        self.silent = silent
-        self.install_dir = tk.StringVar(value=target_dir if target_dir else DEFAULT_INSTALL_DIR)
-        self.create_desktop_shortcut = tk.BooleanVar(value=True)
-        self.create_startmenu_shortcut = tk.BooleanVar(value=True)
-        self.launch_after = tk.BooleanVar(value=not no_launch)
-        self.is_installing = False
-
-        if self.silent:
-            self.withdraw()
-            self.after(100, self._run_silent_install)
-            return
-
-        self.title(f"{APP_NAME} v{APP_VERSION} Setup")
-        self.geometry("540x380")
-        self.resizable(False, False)
-        self._center_window()
-        self._apply_styling()
-        self._build_ui()
-
-    def _center_window(self):
-        self.update_idletasks()
-        w = self.winfo_width()
-        h = self.winfo_height()
-        x = (self.winfo_screenwidth() // 2) - (w // 2)
-        y = (self.winfo_screenheight() // 2) - (h // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
-
-    def _apply_styling(self):
-        self.configure(bg="#F8FAFC")
-        self.style = ttk.Style(self)
-        try:
-            self.style.theme_use("vista")
-        except Exception:
-            pass
-
-    def _build_ui(self):
-        header_frame = tk.Frame(self, bg="#0F172A", height=70)
-        header_frame.pack(fill="x")
-
-        title_lbl = tk.Label(
-            header_frame,
-            text=f"Install {APP_NAME} v{APP_VERSION}",
-            font=("Segoe UI", 14, "bold"),
-            fg="#FFFFFF",
-            bg="#0F172A"
-        )
-        title_lbl.pack(anchor="w", padx=20, pady=(12, 2))
-
-        sub_lbl = tk.Label(
-            header_frame,
-            text=APP_DESC,
-            font=("Segoe UI", 8),
-            fg="#94A3B8",
-            bg="#0F172A"
-        )
-        sub_lbl.pack(anchor="w", padx=20, pady=(0, 10))
-
-        self.body_frame = tk.Frame(self, bg="#F8FAFC", padx=24, pady=16)
-        self.body_frame.pack(fill="both", expand=True)
-
-        dest_lbl = tk.Label(
-            self.body_frame,
-            text="Destination Folder:",
-            font=("Segoe UI", 9, "bold"),
-            bg="#F8FAFC",
-            fg="#1E293B"
-        )
-        dest_lbl.pack(anchor="w", pady=(0, 4))
-
-        path_row = tk.Frame(self.body_frame, bg="#F8FAFC")
-        path_row.pack(fill="x", pady=(0, 12))
-
-        self.path_entry = ttk.Entry(path_row, textvariable=self.install_dir)
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
-
-        browse_btn = ttk.Button(path_row, text="Browse...", command=self._on_browse)
-        browse_btn.pack(side="right")
-
-        opts_frame = tk.LabelFrame(
-            self.body_frame,
-            text=" Shortcuts & Integration ",
-            bg="#F8FAFC",
-            fg="#334155",
-            font=("Segoe UI", 9, "bold"),
-            padx=10,
-            pady=8
-        )
-        opts_frame.pack(fill="x", pady=(0, 12))
-
-        cb_desktop = tk.Checkbutton(
-            opts_frame,
-            text="Create a Desktop Shortcut",
-            variable=self.create_desktop_shortcut,
-            bg="#F8FAFC",
-            font=("Segoe UI", 9)
-        )
-        cb_desktop.pack(anchor="w", pady=2)
-
-        cb_start = tk.Checkbutton(
-            opts_frame,
-            text="Create a Start Menu Shortcut",
-            variable=self.create_startmenu_shortcut,
-            bg="#F8FAFC",
-            font=("Segoe UI", 9)
-        )
-        cb_start.pack(anchor="w", pady=2)
-
-        cb_launch = tk.Checkbutton(
-            opts_frame,
-            text="Launch application when setup completes",
-            variable=self.launch_after,
-            bg="#F8FAFC",
-            font=("Segoe UI", 9)
-        )
-        cb_launch.pack(anchor="w", pady=2)
-
-        self.progress_bar = ttk.Progressbar(self.body_frame, mode="determinate")
-        self.progress_bar.pack(fill="x", pady=(4, 4))
-
-        self.status_lbl = tk.Label(
-            self.body_frame,
-            text="Ready to install.",
-            font=("Segoe UI", 8),
-            bg="#F8FAFC",
-            fg="#64748B"
-        )
-        self.status_lbl.pack(anchor="w")
-
-        btn_frame = tk.Frame(self, bg="#E2E8F0", height=48)
-        btn_frame.pack(fill="x", side="bottom")
-
-        self.cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.destroy)
-        self.cancel_btn.pack(side="right", padx=16, pady=10)
-
-        self.install_btn = ttk.Button(btn_frame, text="Install Now", command=self._on_start_install)
-        self.install_btn.pack(side="right", padx=4, pady=10)
-
-    def _on_browse(self):
-        chosen = filedialog.askdirectory(initialdir=self.install_dir.get(), title="Select Installation Folder")
-        if chosen:
-            self.install_dir.set(os.path.normpath(chosen))
-
-    def _on_start_install(self):
-        target = self.install_dir.get().strip()
-        if not target:
-            messagebox.showwarning("Invalid Path", "Please specify a valid installation directory.")
-            return
-
-        self.install_btn.configure(state="disabled")
-        self.path_entry.configure(state="disabled")
-        self.cancel_btn.configure(state="disabled")
-        self.is_installing = True
-
-        threading.Thread(target=self._perform_installation, daemon=True).start()
-
-    def _perform_installation(self):
-        try:
-            target_dir = Path(self.install_dir.get().strip())
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-            base_meipass = getattr(sys, "_MEIPASS", os.path.dirname(__file__))
-            payload_path = os.path.join(base_meipass, "app_payload.zip")
-
-            if not os.path.exists(payload_path):
-                raise FileNotFoundError(f"Embedded payload not found at {payload_path}")
-
-            self._update_status("Extracting application files...", 0.1)
-
-            with zipfile.ZipFile(payload_path, "r") as zf:
-                all_members = zf.infolist()
-                total = len(all_members)
-                for i, member in enumerate(all_members):
-                    zf.extract(member, target_dir)
-                    if i % 100 == 0 or i == total - 1:
-                        self._update_status(f"Extracting: {member.filename}", 0.1 + (0.7 * (i / max(1, total))))
-
-            exe_path = target_dir / f"{APP_NAME}.exe"
-
-            self._update_status("Creating desktop and start menu shortcuts...", 0.85)
-            if self.create_desktop_shortcut.get():
-                self._create_shortcut(exe_path, "Desktop")
-            if self.create_startmenu_shortcut.get():
-                self._create_shortcut(exe_path, "Programs")
-
-            self._update_status("Registering application in Windows...", 0.92)
-            self._register_uninstall(target_dir, exe_path)
-
-            self._update_status("Installation complete!", 1.0)
-            if not self.silent:
-                self.after(200, self._on_install_success)
-            else:
-                if self.launch_after.get() and exe_path.exists():
-                    try:
-                        subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
-                    except Exception:
-                        pass
-
-        except Exception as e:
-            self.after(0, lambda: messagebox.showerror("Installation Error", f"Installation failed:\n{str(e)}"))
-            self.after(0, lambda: self.cancel_btn.configure(state="normal"))
-
-    def _update_status(self, text: str, progress: float):
-        if not self.silent:
-            self.after(0, lambda: self.status_lbl.configure(text=text))
-            self.after(0, lambda: self.progress_bar.configure(value=progress * 100))
-
-    def _create_shortcut(self, target_exe: Path, location_type: str):
-        try:
-            tgt = str(target_exe).replace("\\", "\\\\")
-            wdir = str(target_exe.parent).replace("\\", "\\\\")
-            ps_script = (
-                f"$Wsh = New-Object -ComObject WScript.Shell; "
-                f"$f = [Environment]::GetFolderPath('{location_type}'); "
-                f"if ('{location_type}' -eq 'Programs') {{ $f = Join-Path $f '{APP_NAME}'; if (-not (Test-Path $f)) {{ New-Item -ItemType Directory -Path $f | Out-Null }} }}; "
-                f"$s = $Wsh.CreateShortcut((Join-Path $f '{APP_NAME}.lnk')); "
-                f"$s.TargetPath = '{tgt}'; "
-                f"$s.WorkingDirectory = '{wdir}'; "
-                f"$s.Description = '{APP_DESC}'; "
-                f"$s.Save();"
-            )
-            subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], check=True, capture_output=True)
-        except Exception:
-            pass
-
-    def _register_uninstall(self, install_dir: Path, exe_path: Path):
-        try:
-            uninst_bat = install_dir / "uninstall.bat"
-            uninst_script = f"""@echo off
-title {APP_NAME} Uninstaller
-echo ========================================================================
-echo Uninstalling {APP_NAME}...
-echo ========================================================================
-powershell -NoProfile -Command "Remove-Item -Path \\"$([Environment]::GetFolderPath('Desktop'))\\{APP_NAME}.lnk\\" -Force -ErrorAction SilentlyContinue; Remove-Item -Path \\"$([Environment]::GetFolderPath('Programs'))\\{APP_NAME}\\" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{APP_NAME}\\' -Recurse -Force -ErrorAction SilentlyContinue;"
-echo Shortcuts and registry entries removed.
-echo Cleaning up application files...
-cd ..
-timeout /t 1 /nobreak >nul
-rmdir /S /Q "%~dp0"
-echo {APP_NAME} has been completely uninstalled.
-pause
-"""
-            uninst_bat.write_text(uninst_script, encoding="utf-8")
-
-            key_path = fr"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
-            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-                winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, f"{APP_NAME} - {APP_DESC}")
-                winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, APP_VERSION)
-                winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, APP_PUBLISHER)
-                winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, str(exe_path))
-                winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, str(install_dir))
-                winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, str(uninst_bat))
-                winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
-                winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
-        except Exception:
-            pass
-
-    def _on_install_success(self):
-        exe_path = Path(self.install_dir.get().strip()) / f"{APP_NAME}.exe"
-        if self.launch_after.get() and exe_path.exists():
-            try:
-                subprocess.Popen([str(exe_path)], cwd=str(exe_path.parent))
-            except Exception:
-                pass
-
-        if not self.silent:
-            messagebox.showinfo("Installation Complete", f"{APP_NAME} v{APP_VERSION} was installed successfully!")
-            self.destroy()
-
-    def _run_silent_install(self):
-        try:
-            self._perform_installation()
-        finally:
-            self.destroy()
-
-
-def main():
-    silent = ("--silent" in sys.argv) or ("/S" in sys.argv)
-    no_launch = ("--no-launch" in sys.argv)
-    target_dir = None
-    for i, arg in enumerate(sys.argv):
-        if arg in ("--dir", "-d", "/D") and i + 1 < len(sys.argv):
-            target_dir = sys.argv[i + 1]
-    wizard = SetupWizard(silent=silent, target_dir=target_dir, no_launch=no_launch)
-    wizard.mainloop()
-
-
-if __name__ == "__main__":
-    main()
-'''
-
-
-def generate_installer_wizard_script(
-    installer_src_dir: Path,
-    app_name: str,
-    version: str,
-    publisher: str,
-    description: str,
-) -> Path:
-    """Generates the Python script for the standalone Windows graphical setup wizard."""
-    installer_src_dir.mkdir(parents=True, exist_ok=True)
-    script_path = installer_src_dir / "setup_wizard.py"
-
-    code = (
-        WIZARD_TEMPLATE
-        .replace("__APP_NAME__", app_name)
-        .replace("__APP_VERSION__", version)
-        .replace("__APP_PUBLISHER__", publisher)
-        .replace("__APP_DESC__", description)
-    )
-    script_path.write_text(code, encoding="utf-8")
-    return script_path
-
-
-def build_installer_executable(
-    app_dir: Path,
-    release_dir: Path,
-    icon_path: Path,
-) -> Path:
-    """Creates a single-file Windows setup installer executable."""
-    Log.header("Packaging Variant 2: Standalone Setup Installer (.exe)")
-
-    installer_work_dir = BUILD_DIR / "installer_src"
-    installer_work_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Compress app into internal payload
-    payload_zip = installer_work_dir / "app_payload.zip"
-    if not payload_zip.exists() or payload_zip.stat().st_size == 0:
-        Log.info("Preparing internal application payload for installer...")
-        start_payload = time.time()
-        with zipfile.ZipFile(payload_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-            for root, _, files in os.walk(app_dir):
-                for file in files:
-                    file_path = Path(root) / file
-                    rel_path = file_path.relative_to(app_dir)
-                    zf.write(file_path, arcname=str(rel_path))
-        Log.info(f"Payload prepared ({payload_zip.stat().st_size / (1024 * 1024):.1f} MB in {time.time() - start_payload:.1f}s)")
-    else:
-        Log.info(f"Reusing existing installer payload archive ({payload_zip.stat().st_size / (1024 * 1024):.1f} MB)")
-
-    # 2. Generate setup wizard script
-    wizard_script = generate_installer_wizard_script(
-        installer_work_dir,
-        APP_NAME,
-        __version__,
-        PUBLISHER,
-        APP_DESCRIPTION,
-    )
-
-    # 3. Compile standalone installer with PyInstaller
-    installer_exe_name = f"{APP_NAME}-v{__version__}-windows-x64-installer"
-    installer_dist_dir = BUILD_DIR / "installer_dist"
-
-    cmd = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        "--name",
-        installer_exe_name,
-        "--onefile",
-        "--windowed",
-        "--noconfirm",
-        "--clean",
-        f"--icon={icon_path}",
-        "--distpath",
-        str(installer_dist_dir),
-        "--workpath",
-        str(BUILD_DIR / "work_installer"),
-        "--specpath",
-        str(BUILD_DIR),
-        # Exclude heavy libraries from the installer wrapper so it builds in seconds
-        "--exclude-module", "PySide6",
-        "--exclude-module", "cv2",
-        "--exclude-module", "scipy",
-        "--exclude-module", "torch",
-        "--exclude-module", "torchvision",
-        "--exclude-module", "pandas",
-        "--exclude-module", "matplotlib",
-        "--exclude-module", "yt_dlp",
-        "--add-data",
-        f"{payload_zip};.",
-        str(wizard_script),
-    ]
-
-    Log.info("Compiling standalone setup wizard executable...")
-    start_time = time.time()
-
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        cwd=str(PROJECT_ROOT),
-    )
-
-    if process.stdout:
-        for line in iter(process.stdout.readline, ""):
-            line_str = line.strip()
-            if any(k in line_str for k in ("Building PKG", "Building EXE", "completed successfully")):
-                Log.info(f"Installer: {line_str}")
-
-    process.wait()
-    if process.returncode != 0:
-        raise RuntimeError(f"Failed to build installer executable with exit code {process.returncode}")
-
-    compiled_installer = installer_dist_dir / f"{installer_exe_name}.exe"
-    target_installer = release_dir / f"{installer_exe_name}.exe"
-
-    shutil.copy2(compiled_installer, target_installer)
-    elapsed = time.time() - start_time
-    size_mb = target_installer.stat().st_size / (1024 * 1024)
-    Log.success(f"Setup Installer created ({size_mb:.1f} MB, {elapsed:.1f}s): {target_installer}")
-    return target_installer
-
-
-# -----------------------------------------------------------------------------
-# Variant 2: Native Windows Installer (.msi) via WiX Toolset
+# Deliverable 2: Native Windows Installer (.msi) via WiX Toolset
 # -----------------------------------------------------------------------------
 def get_wix_tools() -> Dict[str, Path]:
     """Locates or automatically prepares the WiX Toolset binaries (candle, light, heat)."""
-    # 1. Check PATH or standard installations
+    # 1. Check system PATH or standard installations
     tools = {}
     for name in ("candle", "light", "heat"):
         found = shutil.which(name)
@@ -845,8 +398,8 @@ def build_msi_installer(
     icon_path: Path,
     per_machine: bool = False,
 ) -> Path:
-    """Builds a standard native Windows Installer (.msi) package for DeckSpool."""
-    Log.header("Packaging Variant 2: Native Windows Installer (.msi)")
+    """Builds a standard native Windows Installer (.msi) package for DeckSpool with custom directory selection & shortcut controls."""
+    Log.header("Packaging Deliverable 2: Native Windows Installer (.msi)")
     release_dir.mkdir(parents=True, exist_ok=True)
 
     tools = get_wix_tools()
@@ -856,7 +409,7 @@ def build_msi_installer(
     msi_name = f"{APP_NAME}-v{__version__}-windows-x64-installer.msi"
     msi_path = release_dir / msi_name
 
-    # 1. Harvest files using heat.exe
+    # 1. Harvest application directory tree using heat.exe
     files_wxs = wix_work_dir / "files.wxs"
     Log.info(f"Harvesting directory tree for {app_dir.name}...")
     cmd_heat = [
@@ -873,7 +426,7 @@ def build_msi_installer(
     if res_heat.returncode != 0:
         raise RuntimeError(f"WiX heat.exe failed:\n{res_heat.stderr}")
 
-    # 2. License RTF
+    # 2. Generate License RTF for installer
     license_rtf = wix_work_dir / "License.rtf"
     license_rtf.write_text(
         r"{\rtf1\ansi\deff0 {\fonttbl {\f0 Segoe UI;}}\f0\fs20 "
@@ -886,7 +439,7 @@ def build_msi_installer(
         encoding="utf-8"
     )
 
-    # 3. Product.wxs definition
+    # 3. Product.wxs definition with interactive directory selection & shortcut checkboxes
     install_scope = "perMachine" if per_machine else "perUser"
     root_folder = "ProgramFiles64Folder" if per_machine else "LocalAppDataFolder"
 
@@ -913,6 +466,11 @@ def build_msi_installer(
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPHELPLINK" Value="https://github.com/vector49/DeckSpool" />
 
+    <!-- Configuration properties for user customization -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
+    <Property Id="INSTALLSTARTMENUSHORTCUT" Value="1" />
+
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="{root_folder}">
         <Directory Id="INSTALLFOLDER" Name="{APP_NAME}" />
@@ -925,8 +483,10 @@ def build_msi_installer(
       <Directory Id="DesktopFolder" Name="Desktop" />
     </Directory>
 
+    <!-- Start Menu Shortcut Component (conditioned on INSTALLSTARTMENUSHORTCUT) -->
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="ApplicationStartMenuShortcutComponent" Guid="A762194D-9345-4277-B178-500DCA96338B">
+        <Condition>INSTALLSTARTMENUSHORTCUT = 1</Condition>
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="{APP_NAME}"
                   Description="{APP_DESCRIPTION}"
@@ -934,12 +494,14 @@ def build_msi_installer(
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
         <RemoveFolder Id="CleanUpShortcutsDir" On="uninstall" />
-        <RegistryValue Root="HKCU" Key="Software\\{APP_NAME}" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\\{APP_NAME}" Name="start_menu_shortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </DirectoryRef>
 
+    <!-- Desktop Shortcut Component (conditioned on INSTALLDESKTOPSHORTCUT) -->
     <DirectoryRef Id="DesktopFolder">
       <Component Id="ApplicationDesktopShortcutComponent" Guid="B827194D-9345-4277-B178-500DCA96338C">
+        <Condition>INSTALLDESKTOPSHORTCUT = 1</Condition>
         <Shortcut Id="AppDesktopShortcut"
                   Name="{APP_NAME}"
                   Description="{APP_DESCRIPTION}"
@@ -956,7 +518,78 @@ def build_msi_installer(
       <ComponentRef Id="ApplicationDesktopShortcutComponent" />
     </Feature>
 
-    <UIRef Id="WixUI_Minimal" />
+    <!-- Standard Windows Installer UI Sequence with Directory Selection and Shortcut Checkboxes -->
+    <UI Id="DeckSpool_UI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <!-- Custom Destination Folder & Shortcut Options Dialog -->
+      <Dialog Id="CustomInstallDirDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose installation folder and shortcut preferences." />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{{\\WixUI_Font_Title}}Destination &amp; Options" />
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="FolderLabel" Type="Text" X="20" Y="60" Width="290" Height="20" NoPrefix="yes" Text="Install [ProductName] to:" />
+        <Control Id="Folder" Type="PathEdit" X="20" Y="82" Width="320" Height="18" Property="WIXUI_INSTALLDIR" Indirect="yes" />
+        <Control Id="ChangeFolder" Type="PushButton" X="20" Y="105" Width="56" Height="17" Text="&amp;Change..." />
+
+        <Control Id="ShortcutGroupLabel" Type="Text" X="20" Y="140" Width="320" Height="14" Text="Shortcut options:" />
+        <Control Id="DesktopShortcutCheckBox" Type="CheckBox" X="20" Y="160" Width="320" Height="17" Property="INSTALLDESKTOPSHORTCUT" CheckBoxValue="1" Text="Create a shortcut on Desktop" />
+        <Control Id="StartMenuShortcutCheckBox" Type="CheckBox" X="20" Y="180" Width="320" Height="17" Property="INSTALLSTARTMENUSHORTCUT" CheckBoxValue="1" Text="Create a shortcut in Start Menu (Windows Search)" />
+      </Dialog>
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomInstallDirDlg">LicenseAccepted = "1"</Publish>
+
+      <Publish Dialog="CustomInstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="CustomInstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomInstallDirDlg" Order="1">NOT Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
     <WixVariable Id="WixUILicenseRtf" Value="{license_rtf.resolve()}" />
   </Product>
 </Wix>
@@ -985,7 +618,7 @@ def build_msi_installer(
         str(tools["light"]),
         "-ext", "WixUIExtension",
         "-spdb",
-        "-sice:ICE69", "-sice:ICE91", "-sice:ICE38", "-sice:ICE64",
+        "-sice:ICE69", "-sice:ICE91", "-sice:ICE38", "-sice:ICE64", "-sice:ICE60",
         str(wix_work_dir / "Product.wixobj"),
         str(wix_work_dir / "files.wixobj"),
         "-out", str(msi_path),
@@ -998,76 +631,6 @@ def build_msi_installer(
     elapsed = time.time() - start_light
     Log.success(f"Windows MSI Installer created ({size_mb:.1f} MB, {elapsed:.1f}s): {msi_path}")
     return msi_path
-
-
-# -----------------------------------------------------------------------------
-# Variant 3: Standalone Setup Installer Generator (.exe)
-# -----------------------------------------------------------------------------
-def generate_inno_setup_script(app_dir: Path, release_dir: Path, icon_path: Path) -> Path:
-    """Generates an Inno Setup .iss compiler script and attempts compilation if ISCC is installed."""
-    Log.header("Generating Inno Setup Script (.iss)")
-
-    iss_path = release_dir / f"{APP_NAME}-v{__version__}.iss"
-    inno_script_content = f"""[Setup]
-AppId={{{{E8175E26-3C60-4FB4-B4A4-71289196E5CA}}}}
-AppName={APP_NAME}
-AppVersion={__version__}
-AppVerName={APP_NAME} v{__version__}
-AppPublisher={PUBLISHER}
-DefaultDirName={{userappdata}}\\{APP_NAME}
-DisableDirPage=no
-DefaultGroupName={APP_NAME}
-DisableProgramGroupPage=yes
-OutputBaseFilename={APP_NAME}-v{__version__}-inno-setup
-Compression=lzma2/ultra64
-SolidCompression=yes
-WizardStyle=modern
-SetupIconFile={icon_path.resolve()}
-UninstallDisplayIcon={{app}}\\{APP_NAME}.exe
-
-[Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "{{cm:CreateDesktopIcon}}"; GroupDescription: "{{cm:AdditionalIcons}}"
-
-[Files]
-Source: "{app_dir.resolve()}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{{group}}\\{APP_NAME}"; Filename: "{{app}}\\{APP_NAME}.exe"
-Name: "{{autodesktop}}\\{APP_NAME}"; Filename: "{{app}}\\{APP_NAME}.exe"; Tasks: desktopicon
-
-[Run]
-Filename: "{{app}}\\{APP_NAME}.exe"; Description: "{{cm:LaunchProgram,{APP_NAME}}}"; Flags: nowait postinstall skipifsilent
-"""
-    iss_path.write_text(inno_script_content, encoding="utf-8")
-    Log.success(f"Inno Setup script written: {iss_path}")
-
-    # Check for Inno Setup compiler
-    iscc_candidates = [
-        shutil.which("iscc"),
-        r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        r"C:\Program Files\Inno Setup 6\ISCC.exe",
-        r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
-    ]
-    iscc_exe = next((p for p in iscc_candidates if p and os.path.exists(p)), None)
-
-    if iscc_exe:
-        Log.info(f"Found Inno Setup compiler at {iscc_exe}. Compiling Inno Setup EXE...")
-        try:
-            cmd = [str(iscc_exe), f"/O{release_dir.resolve()}", str(iss_path.resolve())]
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            if res.returncode == 0:
-                Log.success(f"Compiled Inno Setup executable into {release_dir}")
-            else:
-                Log.warn(f"Inno compilation failed:\n{res.stderr}")
-        except Exception as e:
-            Log.warn(f"Inno Setup execution error: {e}")
-    else:
-        Log.info("Inno Setup (iscc) not found on system; standalone Python installer was generated.")
-
-    return iss_path
 
 
 # -----------------------------------------------------------------------------
@@ -1088,7 +651,7 @@ def generate_checksums(release_dir: Path) -> Path:
     entries = []
 
     for item in sorted(release_dir.glob("*")):
-        if item.is_file() and item.name != "SHA256SUMS.txt" and not item.name.endswith(".iss") and not item.name.endswith(".wixpdb"):
+        if item.is_file() and item.name != "SHA256SUMS.txt" and not item.name.endswith(".wixpdb"):
             digest = compute_sha256(item)
             entries.append(f"{digest}  {item.name}")
 
@@ -1108,7 +671,6 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--recompile", action="store_true", help="Force recompilation of application core.")
     parser.add_argument("--skip-portable", action="store_true", help="Skip generating the portable ZIP archive.")
     parser.add_argument("--skip-msi", action="store_true", help="Skip generating the native Windows Installer (.msi).")
-    parser.add_argument("--skip-exe", action="store_true", help="Skip generating the standalone EXE installer.")
     parser.add_argument("--per-machine", action="store_true", help="Install MSI to Program Files instead of user profile.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_RELEASE_DIR, help="Destination directory for release files.")
     parser.add_argument("--debug", action="store_true", help="Build with console window enabled for debugging.")
@@ -1138,33 +700,25 @@ def main() -> int:
     # 3. Compile Core Application (Onedir)
     app_dir = compile_core_application(icon_path, debug=args.debug, force=args.recompile)
 
-    # 4. Generate Variant 1: Portable ZIP
+    # 4. Generate Deliverable 1: Portable ZIP Archive (.zip)
     portable_zip_path = None
     if not args.skip_portable:
         portable_zip_path = build_portable_zip(app_dir, args.output_dir, force=args.recompile)
 
-    # 5. Generate Variant 2: Native Windows Installer (.msi)
+    # 5. Generate Deliverable 2: Native Windows Installer (.msi)
     msi_path = None
     if not args.skip_msi:
         msi_path = build_msi_installer(app_dir, args.output_dir, icon_path, per_machine=args.per_machine)
 
-    # 6. Generate Variant 3: Standalone GUI Setup Installer (.exe)
-    installer_exe_path = None
-    if not args.skip_exe:
-        installer_exe_path = build_installer_executable(app_dir, args.output_dir, icon_path)
-
-    # 7. Generate Inno Setup Script (.iss)
-    generate_inno_setup_script(app_dir, args.output_dir, icon_path)
-
-    # 8. Generate Checksums
+    # 6. Generate Checksums
     generate_checksums(args.output_dir)
 
-    # 8. Print Summary
+    # 7. Print Summary
     total_elapsed = time.time() - start_total_time
     Log.header("Release Build Summary")
-    print(f"  Application:       {APP_NAME} v{__version__}")
-    print(f"  Publisher:         {PUBLISHER}")
-    print(f"  Total Build Time:  {total_elapsed:.1f}s")
+    print(f"  Application:        {APP_NAME} v{__version__}")
+    print(f"  Publisher:          {PUBLISHER}")
+    print(f"  Total Build Time:   {total_elapsed:.1f}s")
     print(f"  Artifacts Location: {args.output_dir.resolve()}")
     print("-" * 75)
 
@@ -1174,7 +728,7 @@ def main() -> int:
             print(f"  - {item.name:<48} ({size_mb:>6.2f} MB)")
 
     print("-" * 75)
-    Log.success("All build artifacts generated successfully!")
+    Log.success("All build deliverables generated successfully!")
     return 0
 
 
