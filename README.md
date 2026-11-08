@@ -136,7 +136,6 @@ In addition to live video processing, DeckSpool includes a dedicated standalone 
 <p align="center">
   <img src="docs/images/deckspool_dedup_dialog.png" alt="Review & Deduplicate PDF Dialog" width="680">
   <br>
-  <em>Interactive PDF Deduplication & Speaker Cutaway Truncation Tool</em>
 </p>
 
 - **Keep First Appearance Alone**: Scans multi-page slide decks, identifies recurring duplicate slides (such as repeated agenda slides or title cards), and removes duplicates while preserving the initial instance.
