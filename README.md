@@ -124,7 +124,7 @@ DeckSpool features a signature Neo-Brutalist interface with high-contrast typogr
 <p align="center">
   <img src="docs/images/deckspool_gui_dark.png" alt="DeckSpool Desktop GUI - Dark Theme" width="880">
   <br>
-  <em>DeckSpool Neo-Brutalist Desktop Interface (High-Contrast Dark Theme)</em>
+  <em>DeckSpool Neo-Brutalist Desktop Interface (Dark Theme)</em>
 </p>
 
 ---
