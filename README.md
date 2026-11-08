@@ -10,25 +10,25 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/vector49/DeckSpool/releases"><img src="https://img.shields.io/badge/Release-v1.0.0-blue?style=flat-square&logo=windows" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Platform-Windows%20(MSI%20%7C%20ZIP)-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows Support">
+  <a href="https://github.com/vector49/DeckSpool/releases"><img src="https://img.shields.io/badge/Release-v1.0.0-blue?style=flat-square&logo=windows" alt="Release v1.0.0"></a>
+  <img src="https://img.shields.io/badge/Windows-MSI%20Installer%20%7C%20Portable%20ZIP-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows Support">
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/GUI-PySide6%20%28Qt6%29-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PySide6">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-2374AB.svg?style=flat-square" alt="License: Apache 2.0"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/vector49/DeckSpool/releases"><strong>Download Windows Installer (.msi)</strong></a> •
-  <a href="https://github.com/vector49/DeckSpool/releases"><strong>Download Portable Edition (.zip)</strong></a> •
-  <a href="#quick-start--installation"><strong>Run from Source</strong></a>
+  <a href="https://github.com/vector49/DeckSpool/releases"><strong>⬇️ Download Windows Installer (.msi)</strong></a> •
+  <a href="https://github.com/vector49/DeckSpool/releases"><strong>📦 Download Portable Edition (.zip)</strong></a> •
+  <a href="#quick-start--installation"><strong>🚀 Run from Source</strong></a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="docs/images/deckspool_gui_dark.png" alt="DeckSpool Desktop GUI - Dark Mode" width="880">
+  <img src="docs/images/deckspool_gui_light.png" alt="DeckSpool Desktop GUI - Signature Light Theme" width="880">
   <br>
-  <em>DeckSpool Neo-Brutalist Desktop Interface (Dark Theme)</em>
+  <em>DeckSpool Neo-Brutalist Desktop Interface (Default Light Theme)</em>
 </p>
 
 ---
@@ -38,8 +38,8 @@
 **DeckSpool** is a modern desktop application built with Python and PySide6 (Qt6) that automatically detects and extracts unique presentation slides from YouTube URLs or local video files and compiles them into clean, lossless PDF documents.
 
 It is engineered to solve common video-to-slide extraction challenges:
-- **Animated Bullet Points & Progressive Handwriting**: Eliminates duplicate partial builds by waiting for the slide content to settle.
-- **Speaker Cutaways & Narrator Camera Shots**: Detects and purges speaker-only talking shots using onboard neural face detection (`YuNet`).
+- **Animated Bullet Points & Progressive Handwriting**: Eliminates duplicate partial builds by waiting for the slide content to stabilize.
+- **Speaker Cutaways & Full-Human Shots**: Detects and purges speaker-only talking shots using onboard neural face detection (`YuNet`).
 - **Webcam Overlays & Picture-in-Picture (PIP)**: Intelligently masks corner speaker cams to avoid false slide transitions.
 - **Player Bars & Control Overlays**: Masks YouTube progress scrubbers and playback controls.
 - **Letterboxing & Pillarboxing**: Auto-crops black borders for clean, edge-to-edge slide output.
@@ -52,19 +52,19 @@ DeckSpool offers two official pre-compiled Windows releases alongside standard c
 
 ### Method 1: Pre-Compiled Windows Releases (Recommended)
 
-Visit the [**Latest Releases**](https://github.com/vector49/DeckSpool/releases) page to download either flavor:
+Download the latest version from the [**GitHub Releases**](https://github.com/vector49/DeckSpool/releases) page:
 
 #### A. Native Windows Installer (`.msi`)
-- **Interactive Directory Selection**: Choose your preferred destination folder or accept the default.
-- **Windows Integration**: Creates Start Menu entries indexed by Windows Search, optional Desktop shortcut, and registered uninstaller in *Windows Installed Apps*.
-- **Instant Launch**: Option to start DeckSpool immediately upon completing installation.
-- **Deliverable**: `DeckSpool-v1.0.0-windows-x64-installer.msi`
+- **Interactive Directory Selection**: Choose your preferred destination folder via the `"Change..."` directory browser or accept the standard default.
+- **Windows Integration**: Creates Start Menu entries indexed by Windows Search, an optional Desktop shortcut, and registers a standard uninstaller in *Windows Installed Apps*.
+- **Post-Install Instant Launch**: Check `"Run DeckSpool"` on the final wizard screen to launch immediately.
+- **File**: `DeckSpool-v1.0.0-windows-x64-installer.msi`
 
 #### B. Standalone Portable Package (`.zip`)
-- **Zero Installation**: Extract to any folder, external drive, or USB flash drive and run.
-- **No Administrative Rights**: Runs immediately without UAC elevation or modifying the Windows Registry.
-- **Self-Contained**: To uninstall, simply delete the extracted folder.
-- **Deliverable**: `DeckSpool-v1.0.0-windows-x64-portable.zip`
+- **Plug & Play**: Extract the ZIP archive to any directory or USB drive and double-click `DeckSpool.exe`.
+- **Zero Installation**: Completely self-contained; requires no administrator privileges or UAC elevation and makes no modifications to the Windows Registry.
+- **Clean Removal**: Simply delete the folder when finished.
+- **File**: `DeckSpool-v1.0.0-windows-x64-portable.zip`
 
 ---
 
@@ -73,57 +73,58 @@ Visit the [**Latest Releases**](https://github.com/vector49/DeckSpool/releases) 
 Ensure Python 3.10 or newer is installed on your system.
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/vector49/DeckSpool.git
 cd DeckSpool
 
-# Create and activate a virtual environment (recommended)
+# 2. Create and activate a virtual environment (recommended)
 python -m venv venv
+
 # On Windows:
 .\venv\Scripts\activate
 # On Linux/macOS:
 source venv/bin/activate
 
-# Install required dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# Launch DeckSpool
+# 4. Launch DeckSpool
 python main.py
 ```
 
 #### Core Dependencies
-- `PySide6`: Hardware-accelerated Qt6 desktop GUI framework.
+- `PySide6`: Modern, hardware-accelerated Qt6 desktop GUI framework.
 - `yt-dlp`: Stream resolution and video ingestion without re-encoding.
 - `opencv-python-headless`: Fast frame seeking, image transformation, and vectorized SSIM.
 - `imagehash`: 64-bit perceptual difference hashing (`dHash`).
 - `img2pdf`: Lossless image-to-PDF compiler without lossy re-compression.
 - `pypdfium2`: High-speed PDF page rasterization and page extraction.
-- `Pillow`: Image manipulation and thumbnail preview rendering.
+- `Pillow`: Image processing and thumbnail preview rendering.
 - `scipy` & `numpy`: High-performance array operations.
 
 ---
 
-### Building Release Packages from Source
+### Building Official Releases from Source
 
 To compile the standalone portable zip and native MSI installer locally on Windows:
 
 ```bash
-# Requires WiX Toolset v3 installed (for MSI generation)
+# Requires WiX Toolset v3 installed on PATH (for MSI compilation)
 python build_release.py
 ```
 
-This compiles the core with PyInstaller, generates the `.zip` archive, builds the `.msi` package via WiX, and calculates cryptographic SHA-256 checksums (`SHA256SUMS.txt`) in `dist/release/`.
+This compiles the core executable with PyInstaller, packages the portable `.zip`, synthesizes the WiX product definition, builds the `.msi` installer, and calculates cryptographic SHA-256 checksums (`SHA256SUMS.txt`) in `dist/release/`.
 
 ---
 
-## User Interface & Themes
+## User Interface & Dual Themes
 
 DeckSpool features a signature Neo-Brutalist interface with high-contrast typography, responsive layout containers, and seamless one-click dark/light theme switching.
 
 <p align="center">
-  <img src="docs/images/deckspool_gui_light.png" alt="DeckSpool Desktop GUI - Light Mode" width="880">
+  <img src="docs/images/deckspool_gui_dark.png" alt="DeckSpool Desktop GUI - Dark Theme" width="880">
   <br>
-  <em>DeckSpool Neo-Brutalist Desktop Interface (Light Theme)</em>
+  <em>DeckSpool Neo-Brutalist Desktop Interface (High-Contrast Dark Theme)</em>
 </p>
 
 ---
@@ -135,7 +136,7 @@ In addition to live video processing, DeckSpool includes a dedicated standalone 
 <p align="center">
   <img src="docs/images/deckspool_dedup_dialog.png" alt="Review & Deduplicate PDF Dialog" width="680">
   <br>
-  <em>Interactive PDF Deduplication & Speaker Pruning Modal</em>
+  <em>Interactive PDF Deduplication & Speaker Cutaway Truncation Tool</em>
 </p>
 
 - **Keep First Appearance Alone**: Scans multi-page slide decks, identifies recurring duplicate slides (such as repeated agenda slides or title cards), and removes duplicates while preserving the initial instance.
@@ -176,15 +177,16 @@ In addition to live video processing, DeckSpool includes a dedicated standalone 
 1. **Choose Source**: Select **YouTube URL** or **Local File**.
    - **YouTube**: Paste the video link (e.g., `https://www.youtube.com/watch?v=...`). The video title is automatically queried in the background to name your PDF.
    - **Local File**: Click **Browse...** to pick any `.mp4`, `.mkv`, `.mov`, `.avi`, or `.webm` presentation video.
-2. **Configure Detection (Optional)**:
+2. **Configure Detection Parameters (Optional)**:
    - **Sample Interval**: 0.5s to 5.0s (Default: `1.0s`).
    - **Similarity Threshold**: 80% to 99% (Default: `92%`).
    - **Debounce / Settle Time**: 1.0s to 10.0s (Default: `2.0s`).
    - **Min Slide Duration**: 1.0s to 15.0s (Default: `2.0s`).
-3. **Configure Preprocessing**:
-   - Toggle **Mask Presenter / PIP** if a webcam overlay is present.
-   - Toggle **Ignore Player Chrome** (default: On) to mask player controls.
-   - Toggle **Canvas Auto-Crop** to eliminate black borders around slides.
+3. **Configure Preprocessing Toggles**:
+   - **Mask Presenter / PIP**: Exclude speaker webcam overlays from slide analysis.
+   - **Ignore Player Chrome**: Automatically mask player controls and scrubber bars.
+   - **Canvas Auto-Crop**: Crop out black letterbox and pillarbox padding.
+   - **Truncate Global Duplicate Slides**: Filter recurring duplicate slides throughout the deck, keeping only the first occurrence.
 4. **Start Extraction**: Click the **Start Extraction** button. Monitor real-time progress, FPS, slide count, and live preview thumbnails.
 5. **Open Document**: Once finished, click **Open PDF** or **Open Folder** directly from the completion modal.
 
