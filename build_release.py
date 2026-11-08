@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Vignesh Rajan (vector49)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Build and packaging script for DeckSpool.
 
 Compiles the DeckSpool application into two official release deliverables:
-  1. Standalone Portable ZIP archive (extract & run, zero installation required).
+  1. Standalone Portable ZIP archive (extract & run, zero installation required,
+     bundled with portable quick-start guide).
   2. Native Windows Installer (.msi) with interactive destination folder selection
      ("Change..." directory browser), Start Menu integration (Windows Search indexing),
-     and optional Desktop shortcut checkboxes.
+     Desktop shortcut option, post-install launch ("Run DeckSpool"), and brief application description.
   3. Cryptographic SHA-256 checksums (SHA256SUMS.txt).
 
 Usage:
@@ -51,7 +66,7 @@ except ImportError:
 APP_NAME = "DeckSpool"
 APP_TITLE = "DeckSpool - Presentation Slide Extractor"
 APP_DESCRIPTION = "Extract unique presentation slides from YouTube videos and local files into clean, searchable PDFs."
-PUBLISHER = "DeckSpool"
+PUBLISHER = "Vignesh Rajan (vector49)"
 
 BUILD_DIR = PROJECT_ROOT / "build"
 DIST_DIR = PROJECT_ROOT / "dist"
@@ -171,6 +186,7 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
 
     pyinstaller_args = [
         sys.executable,
+        "-u",
         "-m",
         "PyInstaller",
         "--name",
@@ -242,6 +258,9 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
     Log.info(f"Running PyInstaller onedir build for {APP_NAME} v{__version__}...")
     start_time = time.time()
 
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
     process = subprocess.Popen(
         pyinstaller_args,
         stdout=subprocess.PIPE,
@@ -249,6 +268,7 @@ def compile_core_application(icon_path: Path, debug: bool = False, force: bool =
         text=True,
         bufsize=1,
         cwd=str(PROJECT_ROOT),
+        env=env,
     )
 
     last_heartbeat = time.time()
@@ -302,38 +322,68 @@ def build_portable_zip(app_dir: Path, release_dir: Path, force: bool = False) ->
     if zip_path.exists():
         zip_path.unlink()
 
-    # Create quick-start instructions for portable users
+    # Quick-start instructions and application overview for portable users
     readme_text = f"""========================================================================
 {APP_NAME} v{__version__} - Portable Release (Windows x64)
 {APP_DESCRIPTION}
 Publisher: {PUBLISHER}
 ========================================================================
 
-QUICK START:
-1. Extract the contents of this ZIP archive to any folder or portable drive.
-2. Double-click '{APP_NAME}.exe' to start using the application immediately.
-3. No installation or administrative permissions required.
+PORTABLE USAGE & QUICK START:
+1. Extract the contents of this ZIP archive to any folder or USB drive.
+2. Double-click '{APP_NAME}.exe' to launch the application immediately.
+3. Completely self-contained: zero installation, no registry modifications,
+   and no administrator privileges required.
+4. To remove, simply delete the extracted folder.
 
 SYSTEM REQUIREMENTS:
 - Windows 10 (64-bit) or Windows 11
 - Active Internet connection (for YouTube video stream downloading)
 
-PROJECT REPOSITORY:
-- https://github.com/vector49/DeckSpool
+ABOUT {APP_NAME.upper()}:
+{APP_NAME} is an automated presentation slide extractor that converts video
+lectures, workshops, and webinars into clean, searchable PDF documents.
+
+KEY CAPABILITIES:
+- Automated scene and slide transition detection
+- Computer vision deduplication (SSIM and perceptual hashing)
+- Intelligent presenter/speaker occlusion detection and removal
+- YouTube video stream ingestion and local video file processing
+- Direct PDF compilation with vector text and multi-page indexing
+
+PROJECT REPOSITORY & SUPPORT:
+- Project Homepage: https://github.com/vector49/DeckSpool
+- Issue Tracker:    https://github.com/vector49/DeckSpool/issues
+
+Copyright (c) 2026 {PUBLISHER}. All rights reserved.
+Distributed under the Apache License, Version 2.0.
 ========================================================================
 """
-    readme_path = app_dir / "PORTABLE_README.txt"
-    readme_path.write_text(readme_text, encoding="utf-8")
+    # Remove any lingering PORTABLE_README.txt on disk so it never leaks into other builds
+    portable_readme_on_disk = app_dir / "PORTABLE_README.txt"
+    if portable_readme_on_disk.exists():
+        portable_readme_on_disk.unlink()
 
     Log.info(f"Compressing {app_dir.name} into {zip_path.name}...")
     start_time = time.time()
 
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # Embed PORTABLE_README.txt exclusively inside the portable zip archive
+        zf.writestr(f"{app_dir.name}/PORTABLE_README.txt", readme_text)
+
+        # Bundle LICENSE and NOTICE in portable archive
+        for doc_name in ("LICENSE", "NOTICE"):
+            doc_file = PROJECT_ROOT / doc_name
+            if doc_file.exists():
+                zf.write(doc_file, arcname=f"{app_dir.name}/{doc_name}")
+
         total_files = sum(len(files) for _, _, files in os.walk(app_dir))
         count = 0
 
         for root, _, files in os.walk(app_dir):
             for file in files:
+                if file == "PORTABLE_README.txt":
+                    continue  # Ensure portable readme is never duplicated from disk
                 file_path = Path(root) / file
                 rel_path = file_path.relative_to(app_dir.parent)
                 zf.write(file_path, arcname=str(rel_path))
@@ -409,7 +459,52 @@ def build_msi_installer(
     msi_name = f"{APP_NAME}-v{__version__}-windows-x64-installer.msi"
     msi_path = release_dir / msi_name
 
-    # 1. Harvest application directory tree using heat.exe
+    # 1. Clean portable readme and synthesize brief installer application description
+    portable_readme_on_disk = app_dir / "PORTABLE_README.txt"
+    if portable_readme_on_disk.exists():
+        portable_readme_on_disk.unlink()
+
+    app_readme = app_dir / "README.txt"
+    app_readme_text = f"""========================================================================
+{APP_NAME} v{__version__}
+{APP_DESCRIPTION}
+Publisher: {PUBLISHER}
+========================================================================
+
+ABOUT {APP_NAME.upper()}:
+{APP_NAME} is an automated presentation slide extractor that converts video
+lectures, workshops, and webinars into clean, searchable PDF documents.
+
+KEY CAPABILITIES:
+- Automated scene and slide transition detection
+- Computer vision deduplication (SSIM and perceptual hashing)
+- Intelligent presenter/speaker occlusion detection and removal
+- YouTube video stream ingestion and local video file processing
+- Direct PDF compilation with vector text and multi-page indexing
+
+QUICK LAUNCH:
+- Press the Windows key, type "{APP_NAME}", and press Enter.
+- Launch from the Desktop shortcut (if enabled during installation).
+- Run directly from the installation directory:
+  {APP_NAME}.exe
+
+DOCUMENTATION & SUPPORT:
+- Project Homepage: https://github.com/vector49/DeckSpool
+- Issue Tracker:    https://github.com/vector49/DeckSpool/issues
+
+Copyright (c) 2026 {PUBLISHER}. All rights reserved.
+Distributed under the Apache License, Version 2.0.
+========================================================================
+"""
+    app_readme.write_text(app_readme_text, encoding="utf-8")
+
+    # Copy official LICENSE and NOTICE files into app_dir for installer harvest
+    for doc_name in ("LICENSE", "NOTICE"):
+        doc_src = PROJECT_ROOT / doc_name
+        if doc_src.exists():
+            shutil.copy2(doc_src, app_dir / doc_name)
+
+    # 2. Harvest application directory tree using heat.exe
     files_wxs = wix_work_dir / "files.wxs"
     Log.info(f"Harvesting directory tree for {app_dir.name}...")
     cmd_heat = [
@@ -426,20 +521,50 @@ def build_msi_installer(
     if res_heat.returncode != 0:
         raise RuntimeError(f"WiX heat.exe failed:\n{res_heat.stderr}")
 
-    # 2. Generate License RTF for installer
+    # 3. Parse harvested files.wxs to locate the File ID of DeckSpool.exe for launch
+    exe_file_id = None
+    import xml.etree.ElementTree as ET
+    wix_ns = {"wix": "http://schemas.microsoft.com/wix/2006/wi"}
+    try:
+        tree = ET.parse(files_wxs)
+        for file_elem in tree.findall(".//wix:File", wix_ns):
+            src = file_elem.attrib.get("Source", "")
+            if src.endswith(f"\\{APP_NAME}.exe") or src.endswith(f"/{APP_NAME}.exe"):
+                exe_file_id = file_elem.attrib.get("Id")
+                break
+    except Exception as e:
+        Log.warn(f"Could not parse files.wxs for executable File ID ({e})")
+
+    launch_target = f"[#{exe_file_id}]" if exe_file_id else f"[INSTALLFOLDER]{APP_NAME}.exe"
+
+    # 4. Generate License RTF for installer
     license_rtf = wix_work_dir / "License.rtf"
     license_rtf.write_text(
-        r"{\rtf1\ansi\deff0 {\fonttbl {\f0 Segoe UI;}}\f0\fs20 "
-        rf"{APP_NAME} v{__version__}\par\par"
-        r"MIT License\par\par"
-        r"Permission is hereby granted, free of charge, to any person obtaining a copy "
-        r"of this software and associated documentation files, to deal in the Software "
-        r"without restriction, including without limitation the rights to use, copy, modify, "
-        r"merge, publish, distribute, sublicense, and/or sell copies of the Software.\par}",
+        r"{\rtf1\ansi\deff0 {\fonttbl {\f0 Segoe UI;}}\f0\fs18 "
+        rf"\b {APP_NAME} v{__version__} - Apache License, Version 2.0\b0\par\par"
+        rf"Copyright 2026 {PUBLISHER}\par"
+        rf"https://github.com/vector49/DeckSpool\par\par"
+        r"Licensed under the Apache License, Version 2.0 (the \"License\"); "
+        r"you may not use this file except in compliance with the License. "
+        r"You may obtain a copy of the License at:\par\par"
+        r"    http://www.apache.org/licenses/LICENSE-2.0\par\par"
+        r"Unless required by applicable law or agreed to in writing, software "
+        r"distributed under the License is distributed on an \"AS IS\" BASIS, "
+        r"WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. "
+        r"See the License for the specific language governing permissions and "
+        r"limitations under the License.\par\par"
+        r"\b TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\b0\par\par"
+        r"1. Definitions: \"License\" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9.\par\par"
+        r"2. Grant of Copyright License: Each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work.\par\par"
+        r"3. Grant of Patent License: Each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, have made, use, sell, and transfer the Work.\par\par"
+        r"4. Redistribution: You may reproduce and distribute copies provided that You give any other recipients a copy of this License, cause modified files to carry prominent notices, and retain all copyright, patent, trademark, and attribution notices.\par\par"
+        r"6. Trademarks: This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor.\par\par"
+        r"7. Disclaimer of Warranty: Licensor provides the Work on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.\par\par"
+        r"Please refer to the LICENSE and NOTICE files installed with this software for complete legal terms and third-party attributions.\par}",
         encoding="utf-8"
     )
 
-    # 3. Product.wxs definition with interactive directory selection & shortcut checkboxes
+    # 5. Product.wxs definition with interactive directory selection, shortcut checkboxes & launch
     install_scope = "perMachine" if per_machine else "perUser"
     root_folder = "ProgramFiles64Folder" if per_machine else "LocalAppDataFolder"
 
@@ -470,6 +595,12 @@ def build_msi_installer(
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
     <Property Id="INSTALLSTARTMENUSHORTCUT" Value="1" />
+
+    <!-- Post-installation Launch Feature ("Run DeckSpool") -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Run {APP_NAME}" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="{launch_target}" />
+    <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="{root_folder}">
@@ -564,6 +695,7 @@ def build_msi_installer(
       <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
       <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
 
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Order="1">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
 
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
@@ -603,6 +735,7 @@ def build_msi_installer(
         f"-dSourceDir={app_dir.resolve()}",
         "-arch", "x64",
         "-ext", "WixUIExtension",
+        "-ext", "WixUtilExtension",
         str(product_wxs),
         str(files_wxs),
         "-out", str(wix_work_dir) + "\\",
@@ -617,6 +750,7 @@ def build_msi_installer(
     cmd_light = [
         str(tools["light"]),
         "-ext", "WixUIExtension",
+        "-ext", "WixUtilExtension",
         "-spdb",
         "-sice:ICE69", "-sice:ICE91", "-sice:ICE38", "-sice:ICE64", "-sice:ICE60",
         str(wix_work_dir / "Product.wixobj"),

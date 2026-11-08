@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/GUI-PySide6%20%28Qt6%29-41CD52?style=flat-square&logo=qt&logoColor=white" alt="PySide6">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square" alt="License: Apache 2.0"></a>
 </p>
 
 ---
@@ -117,3 +118,19 @@ Run the complete test suite:
 ```bash
 python -m unittest discover tests
 ```
+
+---
+
+## License & Attributions
+
+DeckSpool is free and open-source software licensed under the **[Apache License 2.0](LICENSE)**.
+
+Copyright © 2026 **Vignesh Rajan (vector49)**.
+
+### Third-Party Attributions:
+- **YuNet Face Detector** (`deckspool/models/face_detection_yunet.onnx`): Developed by Shiqi Yu, licensed under Apache 2.0 / BSD 3-Clause.
+- **Embedded Fonts** (`deckspool/assets/fonts/`): Space Grotesk, Plus Jakarta Sans, Space Mono, JetBrains Mono, Bricolage Grotesque, and Archivo Black are licensed under the [SIL Open Font License (OFL 1.1)](http://scripts.sil.org/OFL).
+- **Branding & Trademark**: The DeckSpool name, logo, and iconography are proprietary brand identifiers of Vignesh Rajan (vector49).
+
+See the [NOTICE](NOTICE) file for full attribution details.
+

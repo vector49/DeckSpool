@@ -1,0 +1,38 @@
+DeckSpool
+Copyright 2026 Vignesh Rajan (vector49)
+https://github.com/vector49/DeckSpool
+
+This product includes software developed by Vignesh Rajan (vector49).
+
+===============================================================================
+TRADEMARK & BRANDING NOTICE
+===============================================================================
+The "DeckSpool" product name, logotype, icon artwork, and branding assets
+are proprietary identifiers of Vignesh Rajan (vector49). Pursuant to Section 6
+of the Apache License 2.0, this license does not grant permission to use the
+trade names, trademarks, service marks, or product names of the Licensor in
+derived works without prior written consent.
+
+===============================================================================
+THIRD-PARTY COMPONENTS & BUNDLED ASSETS
+===============================================================================
+
+1. YuNet ONNX Face Detection Neural Network Model
+   Location: deckspool/models/face_detection_yunet.onnx
+   Author / Project: Shiqi Yu, OpenCV Model Zoo (libfacedetection)
+   Repository: https://github.com/ShiqiYu/libfacedetection
+   License: Apache License 2.0 / BSD 3-Clause License
+   Copyright (c) 2018-2023 Shiqi Yu. All rights reserved.
+
+2. Embedded Typefaces and Fonts
+   Location: deckspool/assets/fonts/
+   License: SIL Open Font License, Version 1.1 (OFL-1.1)
+   License URL: http://scripts.sil.org/OFL
+   
+   Bundled font families and creators:
+   - Space Grotesk: Copyright (c) 2020 Florian Karsten (https://floriankarsten.com)
+   - Plus Jakarta Sans: Copyright (c) 2020 Gumpita Rahayu, Tokyo Studio (https://tokyotype.com)
+   - Space Mono: Copyright (c) 2016 Colophon Foundry (https://colophon-foundry.org)
+   - JetBrains Mono: Copyright (c) 2020 JetBrains s.r.o. (https://www.jetbrains.com)
+   - Bricolage Grotesque: Copyright (c) 2023 Mathieu Triay (https://mathieutriay.com)
+   - Archivo Black: Copyright (c) 2012 Omnibus-Type (https://www.omnibus-type.com)
