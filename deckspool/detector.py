@@ -345,18 +345,10 @@ class SlideDetector:
             # Collapse progressive bullet-point builds into the completed slide (e.g. Page 2 -> Page 3)
             if getattr(self.config, "collapse_progressive_builds", True):
                 if self._is_progressive_slide_build(last_slide.frame_analysis, self.candidate.frame_analysis):
-                    high_res = self.candidate.frame_high_res
-                    if self.config.mask_presenter:
-                        mask_box_coords = self.presenter_detector.get_mask_box(
-                            self.config.presenter_mode,
-                            self.config.custom_roi_box
-                        )
-                        if mask_box_coords:
-                            high_res = mask_box(high_res, mask_box_coords)
                     upgraded_slide = Slide(
                         index=last_slide.index,
                         timestamp=self.candidate.first_seen_time,
-                        frame_high_res=high_res,
+                        frame_high_res=self.candidate.frame_high_res,
                         frame_analysis=self.candidate.frame_analysis,
                         dhash=self.candidate.dhash
                     )
@@ -366,19 +358,10 @@ class SlideDetector:
                     return upgraded_slide
 
         idx = len(self.committed_slides) + 1
-        high_res = self.candidate.frame_high_res
-        if self.config.mask_presenter:
-            mask_box_coords = self.presenter_detector.get_mask_box(
-                self.config.presenter_mode,
-                self.config.custom_roi_box
-            )
-            if mask_box_coords:
-                high_res = mask_box(high_res, mask_box_coords)
-
         slide = Slide(
             index=idx,
             timestamp=self.candidate.first_seen_time,
-            frame_high_res=high_res,
+            frame_high_res=self.candidate.frame_high_res,
             frame_analysis=self.candidate.frame_analysis,
             dhash=self.candidate.dhash
         )

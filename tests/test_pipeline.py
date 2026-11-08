@@ -473,6 +473,35 @@ class TestDeckSpoolPipeline(unittest.TestCase):
         crop = detect_canvas_crop_box([masked, masked])
         self.assertEqual(crop, (0, 0, 640, 720))
 
+    def test_committed_slide_preserves_pristine_high_res_without_mask_box(self):
+        """Verify that enabling mask_presenter masks analysis frame only, not the high-res slide output."""
+        from deckspool.detector import SlideDetector
+        from deckspool.config import ExtractionConfig, PresenterMaskMode
+
+        config = ExtractionConfig(
+            mask_presenter=True,
+            presenter_mode=PresenterMaskMode.BOTTOM_RIGHT,
+            debounce_settle_time=1.0,
+            min_slide_duration=1.0
+        )
+        detector = SlideDetector(config)
+
+        # Non-zero white/content frame everywhere
+        frame = np.full((720, 1280, 3), 200, dtype=np.uint8)
+        # Feed frames to settle a slide
+        detector.process_frame(0.0, frame)
+        detector.process_frame(1.5, frame)
+        detector.process_frame(3.0, frame, is_last_frame=True)
+
+        self.assertGreater(len(detector.committed_slides), 0)
+        slide = detector.committed_slides[0]
+        high_res = slide.frame_high_res
+        # Verify that bottom-right presenter area is NOT blacked out in high_res
+        # Bottom-right box is (0.72, 0.60, 0.26, 0.35)
+        br_region = high_res[int(0.60 * 720):int((0.60 + 0.35) * 720), int(0.72 * 1280):int((0.72 + 0.26) * 1280)]
+        self.assertTrue(np.all(br_region == 200), "High-res output must preserve original slide content without black mask box")
+
+
 
 class TestPathAutoformatting(unittest.TestCase):
     """Test suite for path cleaning, quote stripping, and Explorer copy autoformatting."""
