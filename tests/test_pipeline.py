@@ -386,6 +386,128 @@ class TestDeckSpoolPipeline(unittest.TestCase):
         is_narrator, _ = detector.is_narrator_frame(slide_img)
         self.assertFalse(is_narrator, "Slide falsely classified as narrator frame")
 
+        # Test conference stage narrator cutaway (e.g. medium camera cut to speaker: cx=0.51, h=12.6%)
+        mock_stage_cut = np.ones((720, 1280, 3), dtype=np.uint8) * 50  # dark stage backdrop
+        mock_stage_faces = [(0.48, 0.21, 0.06, 0.126, 0.92)]
+        is_narrator_stage, stage_reason = detector.is_narrator_frame(mock_stage_cut, detected_faces=mock_stage_faces)
+        self.assertTrue(is_narrator_stage, f"Failed to identify stage narrator cut: {stage_reason}")
+        self.assertIn("narrator", stage_reason.lower())
+
+        # Test medium-wide auditorium cutaway (cx=0.50, h=10.2%, area=0.55%)
+        mock_wide_stage = np.ones((720, 1280, 3), dtype=np.uint8) * 45
+        mock_wide_faces = [(0.475, 0.22, 0.054, 0.102, 0.88)]
+        is_narrator_wide, wide_reason = detector.is_narrator_frame(mock_wide_stage, detected_faces=mock_wide_faces)
+        self.assertTrue(is_narrator_wide, f"Failed to identify wide stage narrator cut: {wide_reason}")
+
+        # Test corner PIP / podium speaker on presentation slide (cx=0.13, h=9.3%)
+        mock_podium_slide = slide_img.copy()
+        mock_podium_faces = [(0.11, 0.21, 0.04, 0.093, 0.91)]
+        is_narrator_podium, podium_reason = detector.is_narrator_frame(mock_podium_slide, detected_faces=mock_podium_faces)
+        self.assertFalse(is_narrator_podium, f"Corner podium speaker on slide falsely rejected: {podium_reason}")
+
+        # Test 50/50 split screen slide (left presenter cx=0.25 h=15%, right slide content with dense text)
+        mock_split_slide = np.ones((720, 1280, 3), dtype=np.uint8) * 30
+        for y_offset in range(100, 650, 40):
+            cv2.putText(mock_split_slide, f"std::vector<int> item_{y_offset}; // C++ metaprogramming", (680, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        mock_split_faces = [(0.21, 0.20, 0.08, 0.15, 0.93)]
+        is_narrator_split, split_reason = detector.is_narrator_frame(mock_split_slide, detected_faces=mock_split_faces)
+        self.assertFalse(is_narrator_split, f"Split-screen slide falsely classified as narrator: {split_reason}")
+
+        # Test 50/50 split screen slide (right presenter cx=0.75 h=15%, left slide content with dense text)
+        mock_split_right = np.ones((720, 1280, 3), dtype=np.uint8) * 30
+        for y_offset in range(100, 650, 40):
+            cv2.putText(mock_split_right, f"std::vector<int> item_{y_offset}; // C++ metaprogramming", (50, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        mock_split_rfaces = [(0.71, 0.20, 0.08, 0.15, 0.93)]
+        is_narrator_split_r, split_r_reason = detector.is_narrator_frame(mock_split_right, detected_faces=mock_split_rfaces)
+        self.assertFalse(is_narrator_split_r, f"Right split-screen slide falsely classified as narrator: {split_r_reason}")
+
+        # Test slide with centered author/speaker photo (cx=0.50, h=15%) surrounded by slide text
+        mock_author_slide = np.ones((720, 1280, 3), dtype=np.uint8) * 240
+        cv2.putText(mock_author_slide, "Keynote: Modern Software Architecture 2026", (80, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 0, 0), 2)
+        for i in range(6):
+            cv2.putText(mock_author_slide, f"- Design Principle #{i+1}: Zero Overhead Encapsulation", (100, 180 + i * 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (20, 20, 20), 2)
+        for i in range(4):
+            cv2.putText(mock_author_slide, f"template <typename T> constexpr auto eval_{i}(T&& val);", (100, 520 + i * 40), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 80, 0), 2)
+        mock_author_faces = [(0.46, 0.32, 0.08, 0.15, 0.94)]
+        is_narrator_author, author_reason = detector.is_narrator_frame(mock_author_slide, detected_faces=mock_author_faces)
+        self.assertFalse(is_narrator_author, f"Slide with centered photo falsely classified as narrator: {author_reason}")
+
+        # Test dark reddish-brown slide with low edge density: when neural detector found 0 faces,
+        # it must NOT fall back to skin heuristics or falsely classify as narrator.
+        dark_brown_slide = np.zeros((720, 1280, 3), dtype=np.uint8)
+        dark_brown_slide[:] = (44, 53, 90)  # Presentation slide with reddish-brown background
+        cv2.putText(dark_brown_slide, "Thank You! Questions?", (300, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+        is_narrator_brown, brown_reason = detector.is_narrator_frame(dark_brown_slide, detected_faces=[])
+        self.assertFalse(is_narrator_brown, f"Dark brown slide falsely classified as narrator: {brown_reason}")
+
+        # Test fallback heuristic: only runs if detector is unavailable
+        fallback_detector = HumanNarratorDetector()
+        fallback_detector.model_path = ""
+        fallback_detector._detector = None
+        # In fallback mode, dark slides are rejected by minimum luminance threshold (Y >= 60)
+        dark_slide_low_y = np.zeros((720, 1280, 3), dtype=np.uint8)
+        dark_slide_low_y[:] = (20, 30, 50)  # BGR dark brown (Y=35 < 60)
+        cv2.putText(dark_slide_low_y, "Thank You! Questions?", (300, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+        is_n_fb, fb_reason = fallback_detector.is_narrator_frame(dark_slide_low_y)
+        self.assertFalse(is_n_fb, f"Fallback falsely flagged dark brown slide: {fb_reason}")
+
+        # Also test the actual CppCon talk final slide color (BGR: 90, 53, 44)
+        cppcon_slide = np.zeros((720, 1280, 3), dtype=np.uint8)
+        cppcon_slide[:] = (90, 53, 44)
+        cv2.putText(cppcon_slide, "Final Slide", (300, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+        is_n_cppcon, cppcon_reason = fallback_detector.is_narrator_frame(cppcon_slide)
+        self.assertFalse(is_n_cppcon, f"Fallback falsely flagged CppCon slide: {cppcon_reason}")
+
+        # When detected_faces=[] is explicitly passed even with fallback_detector (detector is None),
+        # it must respect that 0 faces were found and NEVER fall back to skin heuristics.
+        skin_slide = np.zeros((720, 1280, 3), dtype=np.uint8)
+        skin_slide[:] = (65, 80, 140)  # Skin-matching color in YCrCb
+        cv2.putText(skin_slide, "Slide with 0 detected faces", (200, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        is_n_explicit_empty, reason_explicit_empty = fallback_detector.is_narrator_frame(skin_slide, detected_faces=[])
+        self.assertFalse(is_n_explicit_empty, f"Passing detected_faces=[] falsely triggered fallback skin detector: {reason_explicit_empty}")
+        self.assertEqual(reason_explicit_empty, "Slide content (no central narrator)")
+
+        # Degenerate frame geometry must not cause cv2 or ZeroDivisionError crashes in fallback check
+        self.assertFalse(fallback_detector._fallback_skin_edge_check(np.zeros((1, 1, 3), dtype=np.uint8))[0])
+        self.assertFalse(fallback_detector._fallback_skin_edge_check(np.zeros((0, 0, 3), dtype=np.uint8))[0])
+
+    def test_lightning_talk_benchmark_pdfs(self):
+        """Verify on actual benchmark PDFs: V1-1 flags ONLY [2, 10]; PySide6 Branch flags []."""
+        import pypdfium2
+        from deckspool.human_detector import HumanNarratorDetector
+
+        v1_path = r"C:\Users\Vignesh\Desk.Vignesh\Project DeckSpool\Test Cases\Lightning Talk - V1-1.pdf"
+        pyside_path = r"C:\Users\Vignesh\Desk.Vignesh\Project DeckSpool\Test Cases\Lightning Talk - PySide6 Branch.pdf"
+
+        if not os.path.exists(v1_path) or not os.path.exists(pyside_path):
+            return
+
+        detector = HumanNarratorDetector()
+
+        # Check V1-1
+        doc_v1 = pypdfium2.PdfDocument(v1_path)
+        v1_narrator_pages = []
+        for i in range(len(doc_v1)):
+            pil_p = doc_v1[i].render(scale=0.5).to_pil()
+            bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
+            is_n, _ = detector.is_narrator_frame(bgr)
+            if is_n:
+                v1_narrator_pages.append(i + 1)
+        doc_v1.close()
+        self.assertEqual(v1_narrator_pages, [2, 10], f"V1-1 narrator pages mismatch: {v1_narrator_pages}")
+
+        # Check PySide6 Branch
+        doc_pyside = pypdfium2.PdfDocument(pyside_path)
+        pyside_narrator_pages = []
+        for i in range(len(doc_pyside)):
+            pil_p = doc_pyside[i].render(scale=0.5).to_pil()
+            bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
+            is_n, _ = detector.is_narrator_frame(bgr)
+            if is_n:
+                pyside_narrator_pages.append(i + 1)
+        doc_pyside.close()
+        self.assertEqual(pyside_narrator_pages, [], f"PySide6 Branch narrator pages mismatch: {pyside_narrator_pages}")
+
     def test_deduplicate_pdf_with_narrator_filtering(self):
         """Verify that deduplicate_pdf truncates full-human narrator pages from a PDF."""
         import img2pdf
@@ -500,6 +622,37 @@ class TestDeckSpoolPipeline(unittest.TestCase):
         # Bottom-right box is (0.72, 0.60, 0.26, 0.35)
         br_region = high_res[int(0.60 * 720):int((0.60 + 0.35) * 720), int(0.72 * 1280):int((0.72 + 0.26) * 1280)]
         self.assertTrue(np.all(br_region == 200), "High-res output must preserve original slide content without black mask box")
+
+    def test_detector_null_and_empty_frame_handling(self):
+        """Verify that SlideDetector handles None and 0-size frames gracefully without crashing."""
+        from deckspool.detector import SlideDetector
+        from deckspool.config import ExtractionConfig
+
+        detector = SlideDetector(ExtractionConfig(min_slide_duration=1.0, debounce_settle_time=1.0))
+        # 1. Normal frame to establish candidate
+        frame = np.full((720, 1280, 3), 150, dtype=np.uint8)
+        cv2.putText(frame, "Slide 1 Content", (100, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2)
+        detector.process_frame(0.0, frame)
+        detector.process_frame(1.5, frame)
+        self.assertEqual(len(detector.committed_slides), 1)
+
+        # 2. None frame mid-stream should not raise AttributeError
+        res = detector.process_frame(2.0, None)
+        self.assertIsNone(res)
+
+        # 3. Empty frame mid-stream should not raise OpenCV error
+        res_empty = detector.process_frame(2.5, np.empty((0, 0, 3), dtype=np.uint8))
+        self.assertIsNone(res_empty)
+
+        # 4. Introduce a new candidate slide before EOF
+        frame2 = np.full((720, 1280, 3), 50, dtype=np.uint8)
+        cv2.putText(frame2, "Slide 2 Content", (100, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        detector.process_frame(3.0, frame2)
+
+        # 5. None frame at EOF should cleanly flush candidate slide
+        final = detector.process_frame(4.0, None, is_last_frame=True)
+        self.assertIsNotNone(final)
+        self.assertEqual(len(detector.committed_slides), 2)
 
 
 

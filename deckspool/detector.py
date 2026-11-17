@@ -212,6 +212,13 @@ class SlideDetector:
         is_last_frame: bool = False
     ) -> Optional[Slide]:
         """Evaluates a sampled frame and returns a committed Slide if a transition settled."""
+        if frame_bgr is None or frame_bgr.size == 0:
+            if is_last_frame and self.candidate is not None:
+                slide_duration = timestamp - self.candidate.first_seen_time
+                if slide_duration >= (self.config.min_slide_duration * 0.5):
+                    return self._try_commit_candidate(timestamp)
+            return None
+
         detected_faces = []
         if self.config.mask_presenter or getattr(self.config, "filter_narrator_frames", True):
             detected_faces = self.human_detector.get_detected_faces(frame_bgr)

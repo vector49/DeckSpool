@@ -137,6 +137,34 @@ class HumanNarratorDetector:
         edge_ratio = np.count_nonzero(edges) / float(gray.size)
         return edge_ratio >= 0.020
 
+    def _has_slide_content(
+        self,
+        small_frame: np.ndarray,
+        face_roi: Optional[Tuple[float, float, float, float]] = None
+    ) -> bool:
+        """Checks if regions outside the presenter contain structured presentation text or diagram edges."""
+        h, w = small_frame.shape[:2]
+        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+
+        if face_roi is not None:
+            fn_x, fn_y, fn_w, fn_h = face_roi
+            mask = np.ones((h, w), dtype=np.uint8) * 255
+            bx1 = max(0, int((fn_x - 0.3 * fn_w) * w))
+            bx2 = min(w, int((fn_x + 1.3 * fn_w) * w))
+            by1 = max(0, int(fn_y * h))
+            by2 = min(h, int((fn_y + 2.5 * fn_h) * h))
+            mask[by1:by2, bx1:bx2] = 0
+            edges_masked = cv2.bitwise_and(edges, edges, mask=mask)
+            unmasked_area = np.count_nonzero(mask)
+            if unmasked_area == 0:
+                return False
+            edge_ratio = np.count_nonzero(edges_masked) / float(unmasked_area)
+        else:
+            edge_ratio = np.count_nonzero(edges) / float(gray.size)
+
+        return edge_ratio >= 0.020
+
     def is_narrator_frame(
         self,
         frame_bgr: np.ndarray,
@@ -157,32 +185,55 @@ class HumanNarratorDetector:
             logger.info(gallery_reason)
             return True, gallery_reason
 
-        # 2. YuNet ONNX Face Detection
-        faces = detected_faces if detected_faces is not None else self.get_detected_faces(frame_bgr)
-        for fn_x, fn_y, fn_w, fn_h, score in faces:
-            fn_cx = fn_x + fn_w / 2.0
-            fn_cy = fn_y + fn_h / 2.0
-            area_frac = fn_w * fn_h
+        # 2. YuNet ONNX Face Detection (or caller-supplied detected_faces)
+        detector = self._get_detector(analysis_w, analysis_h)
 
-            is_central = (0.25 <= fn_cx <= 0.75) and (fn_cy <= 0.70)
-            is_prominent = (fn_h >= 0.20) or (area_frac >= 0.030)
-            is_dominant = (fn_h >= 0.32) and (0.20 <= fn_cx <= 0.80)
+        if detected_faces is not None or detector is not None:
+            faces = detected_faces if detected_faces is not None else self.get_detected_faces(frame_bgr)
+            has_slide_content_with_face = False
 
-            if (is_central and is_prominent) or is_dominant:
-                # If presenter is framed to one side (cx >= 0.68 or cx <= 0.32) and not dominating the screen,
-                # check if the opposite side has slide content (split screen or PiP)
-                if (fn_cx >= 0.68 or fn_cx <= 0.32) and (fn_h < 0.25):
-                    if self._has_complementary_slide_content(small_frame, fn_cx):
-                        continue
+            for fn_x, fn_y, fn_w, fn_h, score in faces:
+                fn_cx = fn_x + fn_w / 2.0
+                fn_cy = fn_y + fn_h / 2.0
+                area_frac = fn_w * fn_h
 
-                desc = (
-                    f"Prominent narrator face detected "
-                    f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
-                )
-                logger.info(desc)
-                return True, desc
+                # Full-human / narrator characteristics:
+                # 1. Face is in the central region of the frame (not a corner PIP)
+                is_central = (0.15 <= fn_cx <= 0.85) and (fn_cy <= 0.70)
+                # 2. Face is prominent (face height >= 10% or area >= 0.5% of frame)
+                is_prominent = (fn_h >= 0.10) or (area_frac >= 0.005)
+                # 3. Dominant close-up presenter face
+                is_dominant = (fn_h >= 0.28) and (0.15 <= fn_cx <= 0.85)
 
-        # 3. Fallback heuristic: Skin tone clustering in central region with low edge density
+                if (is_central and is_prominent) or is_dominant:
+                    # If presenter is not dominating the screen (fn_h < 0.25), check for slide content:
+                    if fn_h < 0.25:
+                        # Check split-screen slides (presenter framed to one side)
+                        if fn_cx >= 0.55 or fn_cx <= 0.45:
+                            if self._has_complementary_slide_content(small_frame, fn_cx):
+                                has_slide_content_with_face = True
+                                continue
+                        # Check slides with centered author photo or presentation text
+                        if self._has_slide_content(small_frame, face_roi=(fn_x, fn_y, fn_w, fn_h)):
+                            has_slide_content_with_face = True
+                            continue
+
+                    desc = (
+                        f"Prominent narrator face detected "
+                        f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
+                    )
+                    logger.info(desc)
+                    return True, desc
+
+            if has_slide_content_with_face:
+                return False, "Slide content with presenter/photo"
+
+            # Neural detector is loaded (or detected_faces was explicitly provided):
+            # 0 detected narrator faces means no human narrator.
+            # Do NOT fall back to skin heuristics.
+            return False, "Slide content (no central narrator)"
+
+        # 3. Fallback heuristic: Only run if neural detector is completely unavailable (detector is None and detected_faces is None)
         is_fallback_narrator, fallback_reason = self._fallback_skin_edge_check(small_frame)
         if is_fallback_narrator:
             return True, fallback_reason
@@ -234,19 +285,28 @@ class HumanNarratorDetector:
 
     def _fallback_skin_edge_check(self, frame_bgr: np.ndarray) -> Tuple[bool, str]:
         """Fallback check using skin-tone distribution and edge density if face detector is unavailable."""
+        if frame_bgr is None or frame_bgr.size == 0:
+            return False, "Empty frame"
+
         h, w = frame_bgr.shape[:2]
         cx1, cx2 = int(w * 0.20), int(w * 0.80)
         cy1, cy2 = int(h * 0.05), int(h * 0.65)
+        if cx1 >= cx2 or cy1 >= cy2:
+            return False, "Insufficient frame dimensions for fallback skin check"
+
         central_region = frame_bgr[cy1:cy2, cx1:cx2]
+        if central_region.size == 0:
+            return False, "Empty central region"
 
         ycrcb = cv2.cvtColor(central_region, cv2.COLOR_BGR2YCrCb)
-        skin_mask = cv2.inRange(ycrcb, np.array([0, 133, 77]), np.array([255, 173, 127]))
+        skin_mask = cv2.inRange(ycrcb, np.array([60, 133, 77]), np.array([255, 173, 127]))
         skin_ratio = np.count_nonzero(skin_mask) / float(skin_mask.size)
 
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 60, 180)
         edge_ratio = np.count_nonzero(edges) / float(edges.size)
 
+        # Narrator cutaways (close-up or medium stage shots) have central skin presence alongside low slide edge density (< 2.2%)
         if skin_ratio > 0.15 and edge_ratio < 0.022:
             return True, f"Central skin-tone cluster ({skin_ratio*100:.1f}%) and low edge density ({edge_ratio*100:.1f}%)"
 

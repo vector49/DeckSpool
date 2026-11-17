@@ -124,7 +124,7 @@ Add a dedicated conference gallery detector (`_is_conference_gallery_grid()`):
 1. Identify dark grid gutter margins ($\text{luminance} < 25$) between conference tiles.
 2. Find external rectangular contours corresponding to standard tile aspect ratios ($0.75 \text{ to } 2.2$) occupying $5\% \text{ to } 45\%$ of canvas area.
 3. If $\ge 2$ participant tiles (or dominant grid gutters) exist alongside low slide edge density ($\text{edge\_ratio} < 0.025$), classify the frame as a conference gallery grid and truncate it.
-4. Supplement with `YuNet` ONNX neural face detection, analyzing normalized face height ($h \ge 20\%$) and area fraction to distinguish standalone speaker cuts from small corner PIP webcams.
+4. Supplement with `YuNet` ONNX neural face detection, analyzing normalized face height ($h \ge 10\%$, $x \in [0.15, 0.85]$) and area fraction ($area \ge 0.5\%$) to distinguish standalone speaker cuts from small corner PIP webcams while supporting conference stage camera cuts and preserving structured slide content.
 
 ---
 
@@ -600,9 +600,9 @@ class HumanNarratorDetector:
             fn_cy = fn_y + fn_h / 2.0
             area_frac = fn_w * fn_h
 
-            is_central = (0.25 <= fn_cx <= 0.75) and (fn_cy <= 0.70)
-            is_prominent = (fn_h >= 0.20) or (area_frac >= 0.030)
-            is_dominant = (fn_h >= 0.32) and (0.20 <= fn_cx <= 0.80)
+            is_central = (0.15 <= fn_cx <= 0.85) and (fn_cy <= 0.70)
+            is_prominent = (fn_h >= 0.10) or (area_frac >= 0.005)
+            is_dominant = (fn_h >= 0.28) and (0.15 <= fn_cx <= 0.85)
 
             if is_dominant:
                 desc = (
@@ -629,7 +629,12 @@ class HumanNarratorDetector:
                     logger.info(desc)
                     return True, desc
 
-        # 3. Fallback heuristic: Skin tone clustering in central region with low edge density
+            if has_slide_content_with_face:
+                return False, "Slide content with presenter/photo"
+
+            return False, "Slide content (no central narrator)"
+
+        # 3. Fallback heuristic: Only run if neural detector is unavailable (detector is None)
         is_fallback_narrator, fallback_reason = self._fallback_skin_edge_check(small_frame)
         if is_fallback_narrator:
             return True, fallback_reason
@@ -683,7 +688,7 @@ class HumanNarratorDetector:
         central_region = frame_bgr[cy1:cy2, cx1:cx2]
 
         ycrcb = cv2.cvtColor(central_region, cv2.COLOR_BGR2YCrCb)
-        skin_mask = cv2.inRange(ycrcb, np.array([0, 133, 77]), np.array([255, 173, 127]))
+        skin_mask = cv2.inRange(ycrcb, np.array([60, 133, 77]), np.array([255, 173, 127]))
         skin_ratio = np.count_nonzero(skin_mask) / float(skin_mask.size)
 
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
