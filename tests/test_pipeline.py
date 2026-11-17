@@ -621,6 +621,9 @@ class TestDeckSpoolPipeline(unittest.TestCase):
         frame_360 = np.zeros((h, w), dtype=np.uint8)
         frame_360[:, :w//2] = 20   # Dark slide background
         frame_360[:, w//2:] = 120  # Speaker webcam background
+        for y_offset in range(60, 300, 40):
+            cv2.putText(frame_360, f"Slide Line {y_offset} // Metaprogramming", (20, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, 240, 1)
 
         # Feed updates with detected face on the right half (cx ~ 0.72)
         face_right = [(0.68, 0.20, 0.08, 0.15, 0.95)]

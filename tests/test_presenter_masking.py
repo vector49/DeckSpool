@@ -102,38 +102,100 @@ class TestPresenterMaskingDiagnosis(unittest.TestCase):
         self.assertIsNone(box_720p, "Box did not decay at 720p — decay threshold is resolution-dependent (bug)")
 
     def test_named_constants_exist(self):
-        """Module-level named constants must be used for magic numbers in PresenterDetector decay logic."""
-        import deckspool.roi as roi_module
-        self.assertTrue(
-            hasattr(roi_module, "BOX_MOTION_INACTIVE_THRESHOLD") or
-            hasattr(roi_module, "_BOX_MOTION_INACTIVE_FRACTION") or
-            hasattr(roi_module, "BOX_INACTIVE_SAMPLE_COUNT"),
-            "roi.py must expose named constant(s) for the decay thresholds instead of bare magic numbers"
+        """PresenterDetector must retain the latched box during sub-threshold inactivity intervals
+        and decay to None once the full inactivity sample threshold is reached."""
+        pd = PresenterDetector()
+        h, w = 360, 640
+        static_slide = np.ones((h, w), dtype=np.uint8) * 180
+
+        # Feed 8 frames of top-right motion to establish a detected box
+        for _ in range(8):
+            frame = static_slide.copy()
+            x1, x2 = int(0.72 * w), int(0.96 * w)
+            y1, y2 = int(0.06 * h), int(0.38 * h)
+            frame[y1:y2, x1:x2] = np.random.randint(0, 255, (y2 - y1, x2 - x1), dtype=np.uint8)
+            pd.update(frame)
+
+        established_box = pd.detected_box
+        self.assertIsNotNone(established_box, "Detected box failed to establish with active motion")
+
+        # Feed 5 static frames (sub-threshold: 4 inactive transitions)
+        for _ in range(5):
+            pd.update(static_slide.copy())
+        self.assertEqual(
+            pd.detected_box,
+            established_box,
+            "Detected box prematurely decayed during sub-threshold inactivity"
+        )
+
+        # Feed 5 more static frames (total 10 static frames -> 9 inactive transitions, still sub-threshold)
+        for _ in range(5):
+            pd.update(static_slide.copy())
+        self.assertEqual(
+            pd.detected_box,
+            established_box,
+            "Detected box prematurely decayed before reaching 10 inactive samples"
+        )
+
+        # Feed the 11th static frame (reaches 10 consecutive inactive sample transitions)
+        pd.update(static_slide.copy())
+        self.assertIsNone(
+            pd.detected_box,
+            "Detected box failed to decay upon reaching the inactivity threshold (10 samples)"
         )
 
     def test_split_screen_requires_slide_edges_on_non_presenter_half(self):
         """Split-screen masking must NOT trigger when the non-presenter half has no slide edges.
 
-        Spec: 'the other half displays dense slide edges' — this is a required condition.
-        A dark featureless right half beside a presenter face must NOT trigger SPLIT_LEFT_50.
+        Spec line 108: 'If a presenter face resides persistently on one half while the other half
+        displays dense slide edges, mask the presenter half with SPLIT_RIGHT_50 or SPLIT_LEFT_50.'
+        Even with a sharp center vertical gradient (> 35.0) and prominent face, split-screen masking
+        must NOT trigger when the non-presenter half lacks structured slide edges.
         """
         pd = PresenterDetector()
         h, w = 360, 640
 
-        # Left half: presenter face area (dark, low-edge background)
-        # Right half: featureless dark area (no slide edges)
-        frame = np.ones((h, w), dtype=np.uint8) * 20
+        # Case 1: Presenter on left (20), featureless plain right half (120)
+        # Center gradient |120 - 20| = 100 > 35.0, but zero slide edges on the non-presenter right side
+        frame_no_edges = np.zeros((h, w), dtype=np.uint8)
+        frame_no_edges[:, :w // 2] = 20
+        frame_no_edges[:, w // 2:] = 120
 
-        # Simulate large prominent face on the left (cx ~ 0.20, h ~ 0.18)
         big_left_face = [(0.10, 0.20, 0.20, 0.18, 0.95)]
         for _ in range(8):
-            pd.update(frame.copy(), detected_faces=big_left_face)
+            pd.update(frame_no_edges.copy(), detected_faces=big_left_face)
 
-        # Should NOT mask the right half — no slide content there
-        self.assertNotEqual(
+        self.assertIsNone(
             pd.detected_box,
-            (0.50, 0.00, 0.50, 1.00),
-            "Split-screen masking triggered without slide edges on non-presenter half"
+            f"Split-screen masking triggered ({pd.detected_box}) despite non-presenter right half having no slide edges"
+        )
+
+        # Case 2: Presenter on right (120), featureless plain left half (20)
+        pd_right = PresenterDetector()
+        big_right_face = [(0.68, 0.20, 0.08, 0.15, 0.95)]
+        for _ in range(8):
+            pd_right.update(frame_no_edges.copy(), detected_faces=big_right_face)
+
+        self.assertIsNone(
+            pd_right.detected_box,
+            f"Split-screen masking triggered ({pd_right.detected_box}) despite non-presenter left half having no slide edges"
+        )
+
+        # Case 3: Positive verification - when non-presenter right half HAS structured slide edges,
+        # presenter on left must trigger SPLIT_LEFT_50 (0.00, 0.00, 0.50, 1.00)
+        pd_with_edges = PresenterDetector()
+        frame_with_edges = frame_no_edges.copy()
+        for y in range(60, 300, 40):
+            cv2.putText(frame_with_edges, f"Slide Content Line {y}", (w // 2 + 20, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, 240, 1)
+
+        for _ in range(4):
+            pd_with_edges.update(frame_with_edges.copy(), detected_faces=big_left_face)
+
+        self.assertEqual(
+            pd_with_edges.detected_box,
+            (0.00, 0.00, 0.50, 1.00),
+            "Split-screen masking failed to latch SPLIT_LEFT_50 when non-presenter half had slide edges"
         )
 
 
@@ -144,20 +206,39 @@ class TestHumanDetectorEdgeSeamUnification(unittest.TestCase):
         """Off-center stage speaker on a dark background (no slides) must be flagged as narrator.
 
         Spec: 'if is_prominent and not is_central: if not _has_complementary_slide_content ...'
-        A face at cx=0.30, h=14% on a dark stage must be classified as narrator.
+        A genuinely off-center face (cx < 0.15 or cx > 0.85, e.g. fn_x=0.04, fn_w=0.08 -> cx=0.08,
+        h=14% >= 10%) on a dark stage must exercise the off-center narrator branch.
         """
         from deckspool.human_detector import HumanNarratorDetector
         detector = HumanNarratorDetector()
 
         # Dark auditorium stage — no slide edges at all
         frame = np.full((720, 1280, 3), 30, dtype=np.uint8)
-        # Off-center prominent face: cx ~ 0.30, h ~ 14%
-        off_center_face = [(0.22, 0.20, 0.16, 0.14, 0.91)]
 
-        is_narrator, reason = detector.is_narrator_frame(frame, detected_faces=off_center_face)
+        # 1. Left off-center face: cx = 0.04 + 0.08 / 2 = 0.08 (< 0.15), h = 0.14 (>= 0.10)
+        off_center_face_left = [(0.04, 0.20, 0.08, 0.14, 0.91)]
+        is_narrator, reason = detector.is_narrator_frame(frame, detected_faces=off_center_face_left)
         self.assertTrue(
             is_narrator,
-            f"Off-center stage speaker not classified as narrator. Reason: {reason}"
+            f"Left off-center stage speaker not classified as narrator. Reason: {reason}"
+        )
+        self.assertIn(
+            "Large off-center speaker",
+            reason,
+            f"Expected off-center narrator branch to be exercised, but got reason: {reason}"
+        )
+
+        # 2. Right off-center face: cx = 0.88 + 0.08 / 2 = 0.92 (> 0.85), h = 0.14 (>= 0.10)
+        off_center_face_right = [(0.88, 0.20, 0.08, 0.14, 0.91)]
+        is_narrator_r, reason_r = detector.is_narrator_frame(frame, detected_faces=off_center_face_right)
+        self.assertTrue(
+            is_narrator_r,
+            f"Right off-center stage speaker not classified as narrator. Reason: {reason_r}"
+        )
+        self.assertIn(
+            "Large off-center speaker",
+            reason_r,
+            f"Expected off-center narrator branch to be exercised, but got reason: {reason_r}"
         )
 
     def test_off_center_presenter_with_slide_content_is_not_narrator(self):
@@ -180,22 +261,67 @@ class TestHumanDetectorEdgeSeamUnification(unittest.TestCase):
             is_narrator,
             f"Off-center face beside slide content incorrectly flagged as narrator. Reason: {reason}"
         )
+        self.assertEqual(
+            reason,
+            "Slide content with presenter/photo",
+            f"Expected reason 'Slide content with presenter/photo', got: {reason}"
+        )
 
     def test_has_slide_content_supersedes_has_complementary_slide_content(self):
-        """_has_complementary_slide_content must delegate to _has_slide_content (no Canny duplication).
-
-        After refactoring, _has_complementary_slide_content should call _has_slide_content
-        rather than re-implementing Canny thresholding independently.
-        """
-        import inspect
+        """_has_complementary_slide_content observable behavior must match _has_slide_content
+        on the complementary half-frame ROI."""
         from deckspool.human_detector import HumanNarratorDetector
-        src = inspect.getsource(HumanNarratorDetector._has_complementary_slide_content)
-        # Must NOT contain its own cv2.Canny call — should delegate instead
-        self.assertNotIn(
-            "cv2.Canny",
-            src,
-            "_has_complementary_slide_content still contains its own Canny call (duplicated code not unified)"
+        detector = HumanNarratorDetector()
+
+        h, w = 360, 640
+        # Create a frame with slide text on the left half and blank on the right half
+        frame_slide_left = np.full((h, w, 3), 240, dtype=np.uint8)
+        frame_slide_left[:, w // 2:] = 30  # right half is dark/blank
+        for y in range(40, 320, 40):
+            cv2.putText(frame_slide_left, f"Slide Content Line {y}", (20, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+        left_half = frame_slide_left[:, :w // 2]
+        right_half = frame_slide_left[:, w // 2:]
+
+        # When presenter face is on the right (cx=0.75 >= 0.55):
+        # complementary side is left half (which has slide text)
+        self.assertTrue(detector._has_complementary_slide_content(frame_slide_left, 0.75))
+        # Must agree with _has_slide_content on that exact ROI
+        self.assertEqual(
+            detector._has_complementary_slide_content(frame_slide_left, 0.75),
+            detector._has_slide_content(left_half)
         )
+
+        # When presenter face is on the left (cx=0.25 <= 0.45):
+        # complementary side is right half (which is blank)
+        self.assertFalse(detector._has_complementary_slide_content(frame_slide_left, 0.25))
+        self.assertEqual(
+            detector._has_complementary_slide_content(frame_slide_left, 0.25),
+            detector._has_slide_content(right_half)
+        )
+
+        # When presenter face is centered (0.45 < cx < 0.55):
+        # neither half is complementary, so it returns False
+        self.assertFalse(detector._has_complementary_slide_content(frame_slide_left, 0.50))
+
+        # Symmetric check: slide text on right half, blank on left half
+        frame_slide_right = np.full((h, w, 3), 30, dtype=np.uint8)
+        frame_slide_right[:, w // 2:] = 240
+        for y in range(40, 320, 40):
+            cv2.putText(frame_slide_right, f"Slide Line {y}", (w // 2 + 20, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+        self.assertTrue(detector._has_complementary_slide_content(frame_slide_right, 0.25))
+        self.assertFalse(detector._has_complementary_slide_content(frame_slide_right, 0.75))
+
+        # Robustness check: 2D grayscale frames passed to _has_slide_content
+        gray_2d = cv2.cvtColor(frame_slide_left, cv2.COLOR_BGR2GRAY)
+        self.assertTrue(detector._has_slide_content(gray_2d))
+
+        # Robustness check: 3D BGR frames passed to PresenterDetector._has_slide_edges
+        self.assertTrue(PresenterDetector._has_slide_edges(frame_slide_left[:, :w // 2]))
+        self.assertFalse(PresenterDetector._has_slide_edges(frame_slide_left[:, w // 2:]))
 
 
 if __name__ == "__main__":

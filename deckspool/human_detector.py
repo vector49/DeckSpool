@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 MODEL_FILENAME = "face_detection_yunet.onnx"
 MODEL_URL = "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
 
+# Torso expansion factors used in _has_slide_content() to mask the presenter body beyond their face.
+# These extend the face bounding box to cover shoulders, neck, and upper torso so that slide
+# edges near the presenter's body are not counted as "slide content".
+_BODY_EXPAND_LEFT: float = 0.3    # extend box leftward  by 30% of face width
+_BODY_EXPAND_RIGHT: float = 1.3   # extend box rightward by 130% of face width (cx to right edge)
+_BODY_EXPAND_DOWN: float = 2.5    # extend box downward  by 250% of face height (neck + shoulders)
+
 
 def get_model_path() -> str:
     """Returns path to the YuNet ONNX model, attempting download if not found."""
@@ -147,11 +154,13 @@ class HumanNarratorDetector:
 
         When face_roi is provided, the presenter's body region (face + torso) is masked out before
         measuring slide edge density so that skin texture is not counted as slide content.
-        The body expansion factors are defined as named constants in roi.py to avoid magic numbers.
+        The body expansion factors are defined as module-level named constants to avoid magic numbers.
         """
-        from deckspool.roi import _BODY_EXPAND_LEFT, _BODY_EXPAND_RIGHT, _BODY_EXPAND_DOWN
         h, w = small_frame.shape[:2]
-        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+        if small_frame.ndim == 3:
+            gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = small_frame
         edges = cv2.Canny(gray, 50, 150)
 
         if face_roi is not None:
@@ -242,6 +251,9 @@ class HumanNarratorDetector:
                         )
                         logger.info(desc)
                         return True, desc
+                    else:
+                        has_slide_content_with_face = True
+                        continue
 
             if has_slide_content_with_face:
                 return False, "Slide content with presenter/photo"

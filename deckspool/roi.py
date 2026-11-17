@@ -43,13 +43,6 @@ BOX_MOTION_INACTIVE_FRACTION: float = 0.0030   # < 0.3% of detected-box pixels c
 # At the default 2-second sample interval this equates to ≈ 20 seconds of presenter stillness.
 BOX_INACTIVE_SAMPLE_COUNT: int = 10
 
-# Torso expansion factors used in _has_slide_content() to mask the presenter body beyond their face.
-# These extend the face bounding box to cover shoulders, neck, and upper torso so that slide
-# edges near the presenter's body are not counted as "slide content".
-_BODY_EXPAND_LEFT:  float = 0.3    # extend box leftward  by 30% of face width
-_BODY_EXPAND_RIGHT: float = 1.3    # extend box rightward by 130% of face width (cx to right edge)
-_BODY_EXPAND_DOWN:  float = 2.5    # extend box downward  by 250% of face height (neck + shoulders)
-
 # Extended candidate boxes including full-height Zoom/Teams right-hand participant strip
 CANDIDATE_PIP_BOXES = [
     ("top_right", (0.70, 0.04, 0.28, 0.36)),
@@ -178,6 +171,17 @@ class PresenterDetector:
                 self._box_inactive_count = 0
                 return
 
+    @staticmethod
+    def _has_slide_edges(half_img: np.ndarray, min_edge_density: float = 0.015) -> bool:
+        """Checks if a half-frame displays dense slide edges (text, diagrams, code)."""
+        if half_img is None or half_img.size == 0:
+            return False
+        if half_img.ndim == 3:
+            half_img = cv2.cvtColor(half_img, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(half_img, 50, 150)
+        edge_ratio = np.count_nonzero(edges) / float(half_img.size)
+        return edge_ratio >= min_edge_density
+
     def _detect_split_screen(self, gray_360p: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
         """Detects 50/50 side-by-side presentation layout (e.g. left slide, right speaker webcam, or vice versa)."""
         h, w = gray_360p.shape[:2]
@@ -202,10 +206,14 @@ class PresenterDetector:
                 right_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) >= 0.55)
                 left_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) <= 0.45)
                 if right_faces > left_faces and (right_faces / float(total_f)) >= 0.70:
-                    return (0.50, 0.00, 0.50, 1.00)
+                    # Presenter on right; non-presenter left half must contain structured slide edges
+                    if self._has_slide_edges(gray_360p[:, :mid]):
+                        return (0.50, 0.00, 0.50, 1.00)
 
                 if left_faces > right_faces and (left_faces / float(total_f)) >= 0.70:
-                    return (0.00, 0.00, 0.50, 1.00)
+                    # Presenter on left; non-presenter right half must contain structured slide edges
+                    if self._has_slide_edges(gray_360p[:, mid:]):
+                        return (0.00, 0.00, 0.50, 1.00)
 
         # 2. Pure motion & boundary check (if no face detected or camera off)
         if self._motion_ema is not None and self._samples_count >= 6 and not self._recent_faces:
@@ -214,9 +222,11 @@ class PresenterDetector:
                 left_motion = float(np.sum(self._motion_ema[:, :mid])) / total_motion
                 right_motion = float(np.sum(self._motion_ema[:, mid:])) / total_motion
                 if right_motion >= 0.75:
-                    return (0.50, 0.00, 0.50, 1.00)
+                    if self._has_slide_edges(gray_360p[:, :mid]):
+                        return (0.50, 0.00, 0.50, 1.00)
                 if left_motion >= 0.75:
-                    return (0.00, 0.00, 0.50, 1.00)
+                    if self._has_slide_edges(gray_360p[:, mid:]):
+                        return (0.00, 0.00, 0.50, 1.00)
 
         return None
 

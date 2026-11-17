@@ -268,46 +268,62 @@ class PresenterDetector:
         if self._samples_count >= 4:
             self._resolve_candidate_box(h, w)
 
+    @staticmethod
+    def _has_slide_edges(half_img: np.ndarray, min_edge_density: float = 0.015) -> bool:
+        """Checks if a half-frame displays dense slide edges (text, diagrams, code)."""
+        if half_img is None or half_img.size == 0:
+            return False
+        if half_img.ndim == 3:
+            half_img = cv2.cvtColor(half_img, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(half_img, 50, 150)
+        edge_ratio = np.count_nonzero(edges) / float(half_img.size)
+        return edge_ratio >= min_edge_density
+
     def _detect_split_screen(self, gray_360p: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
         """Detects 50/50 side-by-side presentation layout (e.g. left slide, right speaker webcam, or vice versa)."""
         h, w = gray_360p.shape[:2]
         mid = w // 2
 
+        # Check center vertical column gradient (around 47% to 53% of width)
         x_start = int(w * 0.47)
         x_end = int(w * 0.53)
         col_diffs = np.mean(np.abs(np.diff(gray_360p[:, x_start:x_end].astype(np.float32), axis=1)), axis=0)
         max_center_grad = float(np.max(col_diffs)) if len(col_diffs) > 0 else 0.0
 
+        # Require a sharp vertical boundary gradient separating the two halves (> 35.0)
+        if max_center_grad < 35.0:
+            return None
+
+        # 1. Face-based ground truth (presenter webcam face cannot jump between presentation halves)
         if self._recent_faces:
-            right_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) >= 0.55)
-            left_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) <= 0.45)
-            total_f = len(self._recent_faces)
-            if total_f >= 2:
-                if right_faces > left_faces and (right_faces / float(total_f)) >= 0.55:
-                    if max_center_grad > 15.0 or (
-                        self._motion_ema is not None and (
-                            float(np.sum(self._motion_ema[:, mid:])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
-                        )
-                    ):
+            # Require face to be large enough to represent a full-height speaker cut (not a small PIP or bio)
+            prominent_faces = [f for f in self._recent_faces if f[3] >= 0.14 or (f[2] * f[3]) >= 0.010]
+            total_f = len(prominent_faces)
+            if total_f >= 4:
+                right_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) >= 0.55)
+                left_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) <= 0.45)
+                if right_faces > left_faces and (right_faces / float(total_f)) >= 0.70:
+                    # Presenter on right; non-presenter left half must contain structured slide edges
+                    if self._has_slide_edges(gray_360p[:, :mid]):
                         return (0.50, 0.00, 0.50, 1.00)
 
-                if left_faces > right_faces and (left_faces / float(total_f)) >= 0.55:
-                    if max_center_grad > 15.0 or (
-                        self._motion_ema is not None and (
-                            float(np.sum(self._motion_ema[:, :mid])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
-                        )
-                    ):
+                if left_faces > right_faces and (left_faces / float(total_f)) >= 0.70:
+                    # Presenter on left; non-presenter right half must contain structured slide edges
+                    if self._has_slide_edges(gray_360p[:, mid:]):
                         return (0.00, 0.00, 0.50, 1.00)
 
-        if self._motion_ema is not None and self._samples_count >= 4 and not self._recent_faces:
+        # 2. Pure motion & boundary check (if no face detected or camera off)
+        if self._motion_ema is not None and self._samples_count >= 6 and not self._recent_faces:
             total_motion = float(np.sum(self._motion_ema))
-            if total_motion > 1e-3 and max_center_grad > 18.0:
+            if total_motion > 1e-3:
                 left_motion = float(np.sum(self._motion_ema[:, :mid])) / total_motion
                 right_motion = float(np.sum(self._motion_ema[:, mid:])) / total_motion
-                if right_motion >= 0.70:
-                    return (0.50, 0.00, 0.50, 1.00)
-                if left_motion >= 0.70:
-                    return (0.00, 0.00, 0.50, 1.00)
+                if right_motion >= 0.75:
+                    if self._has_slide_edges(gray_360p[:, :mid]):
+                        return (0.50, 0.00, 0.50, 1.00)
+                if left_motion >= 0.75:
+                    if self._has_slide_edges(gray_360p[:, mid:]):
+                        return (0.00, 0.00, 0.50, 1.00)
 
         return None
 
@@ -593,49 +609,58 @@ class HumanNarratorDetector:
             logger.info(gallery_reason)
             return True, gallery_reason
 
-        # 2. YuNet ONNX Face Detection
-        faces = detected_faces if detected_faces is not None else self.get_detected_faces(frame_bgr)
-        for fn_x, fn_y, fn_w, fn_h, score in faces:
-            fn_cx = fn_x + fn_w / 2.0
-            fn_cy = fn_y + fn_h / 2.0
-            area_frac = fn_w * fn_h
+        # 2. YuNet ONNX Face Detection (or caller-supplied detected_faces)
+        detector = self._get_detector(analysis_w, analysis_h)
 
-            is_central = (0.15 <= fn_cx <= 0.85) and (fn_cy <= 0.70)
-            is_prominent = (fn_h >= 0.10) or (area_frac >= 0.005)
-            is_dominant = (fn_h >= 0.28) and (0.15 <= fn_cx <= 0.85)
+        if detected_faces is not None or detector is not None:
+            faces = detected_faces if detected_faces is not None else self.get_detected_faces(frame_bgr)
+            has_slide_content_with_face = False
 
-            if is_dominant:
-                desc = (
-                    f"Dominant speaker face detected "
-                    f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
-                )
-                logger.info(desc)
-                return True, desc
+            for fn_x, fn_y, fn_w, fn_h, score in faces:
+                fn_cx = fn_x + fn_w / 2.0
+                fn_cy = fn_y + fn_h / 2.0
+                area_frac = fn_w * fn_h
 
-            if is_central and is_prominent:
-                desc = (
-                    f"Prominent narrator face detected "
-                    f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
-                )
-                logger.info(desc)
-                return True, desc
+                is_central = (0.15 <= fn_cx <= 0.85) and (fn_cy <= 0.70)
+                is_prominent = (fn_h >= 0.10) or (area_frac >= 0.005)
+                is_dominant = (fn_h >= 0.28) and (0.15 <= fn_cx <= 0.85)
 
-            if is_prominent and not is_central:
-                if not self._has_complementary_slide_content(small_frame, fn_cx):
+                if (is_central and is_prominent) or is_dominant:
+                    if fn_h < 0.25:
+                        if fn_cx >= 0.55 or fn_cx <= 0.45:
+                            if self._has_complementary_slide_content(small_frame, fn_cx):
+                                has_slide_content_with_face = True
+                                continue
+                        if self._has_slide_content(small_frame, face_roi=(fn_x, fn_y, fn_w, fn_h)):
+                            has_slide_content_with_face = True
+                            continue
+
                     desc = (
-                        f"Large off-center speaker with non-slide background "
+                        f"Prominent narrator face detected "
                         f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
                     )
                     logger.info(desc)
                     return True, desc
 
-        # After iterating all faces — check if any face was accompanied by slide content
-        if has_slide_content_with_face:
-            return False, "Slide content with presenter/photo"
+                if is_prominent and not is_central:
+                    if not self._has_complementary_slide_content(small_frame, fn_cx):
+                        desc = (
+                            f"Large off-center speaker with non-slide background "
+                            f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
+                        )
+                        logger.info(desc)
+                        return True, desc
+                    else:
+                        has_slide_content_with_face = True
+                        continue
 
-        return False, "Slide content (no central narrator)"
+            # After iterating all faces — check if any face was accompanied by slide content
+            if has_slide_content_with_face:
+                return False, "Slide content with presenter/photo"
 
-        # 3. Fallback heuristic: Only run if neural detector is unavailable (detector is None)
+            return False, "Slide content (no central narrator)"
+
+        # 3. Fallback heuristic: Only run if neural detector is unavailable (detector is None and detected_faces is None)
         is_fallback_narrator, fallback_reason = self._fallback_skin_edge_check(small_frame)
         if is_fallback_narrator:
             return True, fallback_reason
