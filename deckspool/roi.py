@@ -33,6 +33,23 @@ PRESET_BOXES = {
     PresenterMaskMode.SPLIT_LEFT_50: (0.00, 0.00, 0.50, 1.00),
 }
 
+# ── Temporal latch decay constants ───────────────────────────────────────────────────────────────
+# Fraction of the detected box's pixel area below which a sample is considered "inactive".
+# Using a normalized fraction (not a raw pixel sum) keeps the threshold resolution-independent:
+# the same value works identically at 360p and 1080p.
+BOX_MOTION_INACTIVE_FRACTION: float = 0.0030   # < 0.3% of detected-box pixels changed → inactive
+
+# Number of consecutive inactive sample intervals before the detected box is discarded.
+# At the default 2-second sample interval this equates to ≈ 20 seconds of presenter stillness.
+BOX_INACTIVE_SAMPLE_COUNT: int = 10
+
+# Torso expansion factors used in _has_slide_content() to mask the presenter body beyond their face.
+# These extend the face bounding box to cover shoulders, neck, and upper torso so that slide
+# edges near the presenter's body are not counted as "slide content".
+_BODY_EXPAND_LEFT:  float = 0.3    # extend box leftward  by 30% of face width
+_BODY_EXPAND_RIGHT: float = 1.3    # extend box rightward by 130% of face width (cx to right edge)
+_BODY_EXPAND_DOWN:  float = 2.5    # extend box downward  by 250% of face height (neck + shoulders)
+
 # Extended candidate boxes including full-height Zoom/Teams right-hand participant strip
 CANDIDATE_PIP_BOXES = [
     ("top_right", (0.70, 0.04, 0.28, 0.36)),
@@ -123,15 +140,17 @@ class PresenterDetector:
             bx, by, bw, bh = self.detected_box
             x1, y1 = int(bx * w), int(by * h)
             x2, y2 = int((bx + bw) * w), int((by + bh) * h)
-            box_diff_motion = float(np.sum(diff[y1:y2, x1:x2]))
-            # If current frame has negligible activity in the box (< 500.0 motion sum)
-            if box_diff_motion < 500.0:
+            box_pixel_area = float(max(1, (x2 - x1) * (y2 - y1)))
+            box_diff_sum = float(np.sum(diff[y1:y2, x1:x2]))
+            # Normalize by box area so the threshold is resolution-independent
+            box_motion_density = box_diff_sum / box_pixel_area
+            if box_motion_density < BOX_MOTION_INACTIVE_FRACTION:
                 self._box_inactive_count += 1
             else:
                 self._box_inactive_count = 0
 
-            # If inactive for >= 10 sample intervals, decay detected box to None
-            if self._box_inactive_count >= 10:
+            # Decay detected box after BOX_INACTIVE_SAMPLE_COUNT consecutive inactive samples
+            if self._box_inactive_count >= BOX_INACTIVE_SAMPLE_COUNT:
                 self.detected_box = None
                 self._box_inactive_count = 0
                 if self._motion_ema is not None:

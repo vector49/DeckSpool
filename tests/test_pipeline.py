@@ -472,41 +472,85 @@ class TestDeckSpoolPipeline(unittest.TestCase):
         self.assertFalse(fallback_detector._fallback_skin_edge_check(np.zeros((0, 0, 3), dtype=np.uint8))[0])
 
     def test_lightning_talk_benchmark_pdfs(self):
-        """Verify on actual benchmark PDFs: V1-1 flags ONLY [2, 10]; PySide6 Branch flags []."""
+        """Verify narrator detection.
+
+        Primary path: when benchmark PDFs are present (developer workstation), checks exact page
+        numbers that are narrator frames.
+        Fallback path: synthetic 2-page PDF (slide + narrator cutaway), always runs in CI.
+        """
         import pypdfium2
+        import img2pdf
         from deckspool.human_detector import HumanNarratorDetector
 
         v1_path = r"C:\Users\Vignesh\Desk.Vignesh\Project DeckSpool\Test Cases\Lightning Talk - V1-1.pdf"
         pyside_path = r"C:\Users\Vignesh\Desk.Vignesh\Project DeckSpool\Test Cases\Lightning Talk - PySide6 Branch.pdf"
 
-        if not os.path.exists(v1_path) or not os.path.exists(pyside_path):
-            return
-
         detector = HumanNarratorDetector()
 
-        # Check V1-1
-        doc_v1 = pypdfium2.PdfDocument(v1_path)
-        v1_narrator_pages = []
-        for i in range(len(doc_v1)):
-            pil_p = doc_v1[i].render(scale=0.5).to_pil()
-            bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
-            is_n, _ = detector.is_narrator_frame(bgr)
-            if is_n:
-                v1_narrator_pages.append(i + 1)
-        doc_v1.close()
-        self.assertEqual(v1_narrator_pages, [2, 10], f"V1-1 narrator pages mismatch: {v1_narrator_pages}")
+        if os.path.exists(v1_path) and os.path.exists(pyside_path):
+            # Primary: verify exact known narrator pages on benchmark PDFs
+            doc_v1 = pypdfium2.PdfDocument(v1_path)
+            v1_narrator_pages = []
+            for i in range(len(doc_v1)):
+                pil_p = doc_v1[i].render(scale=0.5).to_pil()
+                bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
+                is_n, _ = detector.is_narrator_frame(bgr)
+                if is_n:
+                    v1_narrator_pages.append(i + 1)
+            doc_v1.close()
+            self.assertEqual(v1_narrator_pages, [2, 10], f"V1-1 narrator pages mismatch: {v1_narrator_pages}")
 
-        # Check PySide6 Branch
-        doc_pyside = pypdfium2.PdfDocument(pyside_path)
-        pyside_narrator_pages = []
-        for i in range(len(doc_pyside)):
-            pil_p = doc_pyside[i].render(scale=0.5).to_pil()
-            bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
-            is_n, _ = detector.is_narrator_frame(bgr)
-            if is_n:
-                pyside_narrator_pages.append(i + 1)
-        doc_pyside.close()
-        self.assertEqual(pyside_narrator_pages, [], f"PySide6 Branch narrator pages mismatch: {pyside_narrator_pages}")
+            doc_pyside = pypdfium2.PdfDocument(pyside_path)
+            pyside_narrator_pages = []
+            for i in range(len(doc_pyside)):
+                pil_p = doc_pyside[i].render(scale=0.5).to_pil()
+                bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
+                is_n, _ = detector.is_narrator_frame(bgr)
+                if is_n:
+                    pyside_narrator_pages.append(i + 1)
+            doc_pyside.close()
+            self.assertEqual(pyside_narrator_pages, [], f"PySide6 Branch narrator pages mismatch: {pyside_narrator_pages}")
+        else:
+            # Fallback: synthetic 2-page PDF – slide then close-up narrator face.
+            # This always runs in CI and other workstations without benchmark files.
+            temp_dir = tempfile.mkdtemp(prefix="deckspool_benchmark_fallback_")
+            try:
+                # Page 1: plain slide (white bg, black text, high edge density)
+                slide = np.full((720, 1280, 3), 240, dtype=np.uint8)
+                cv2.putText(slide, "Introduction to Metaprogramming", (80, 200),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 0, 0), 4)
+                cv2.putText(slide, "Bullet point 1: Templates", (80, 320),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (40, 40, 40), 2)
+                _, slide_png = cv2.imencode(".png", slide)
+
+                # Page 2: close-up narrator face (skin-toned centre, low edge density)
+                narrator = np.full((720, 1280, 3), 50, dtype=np.uint8)  # dark stage bg
+                # Synthetic prominent face: central oval filled with skin tone
+                cx, cy, rx, ry = 640, 300, 180, 220
+                skin_bgr = (110, 160, 190)
+                cv2.ellipse(narrator, (cx, cy), (rx, ry), 0, 0, 360, skin_bgr, -1)
+                _, narrator_png = cv2.imencode(".png", narrator)
+
+                pdf_path = os.path.join(temp_dir, "synthetic_benchmark.pdf")
+                with open(pdf_path, "wb") as f:
+                    f.write(img2pdf.convert([slide_png.tobytes(), narrator_png.tobytes()]))
+
+                doc = pypdfium2.PdfDocument(pdf_path)
+                flagged_pages = []
+                for i in range(len(doc)):
+                    pil_p = doc[i].render(scale=1.0).to_pil()
+                    bgr = cv2.cvtColor(np.array(pil_p), cv2.COLOR_RGB2BGR)
+                    is_n, _ = detector.is_narrator_frame(bgr)
+                    if is_n:
+                        flagged_pages.append(i + 1)
+                doc.close()
+
+                # Slide (page 1) must NOT be flagged; narrator cutaway (page 2) must be flagged.
+                self.assertNotIn(1, flagged_pages, "Slide page 1 was incorrectly classified as narrator frame")
+                self.assertIn(2, flagged_pages, "Narrator cutaway page 2 was not flagged by detector")
+            finally:
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_deduplicate_pdf_with_narrator_filtering(self):
         """Verify that deduplicate_pdf truncates full-human narrator pages from a PDF."""

@@ -168,15 +168,15 @@ PRESET_BOXES = {
     PresenterMaskMode.SPLIT_LEFT_50: (0.00, 0.00, 0.50, 1.00),
 }
 
-# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip and 50/50 splits
+# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip
 CANDIDATE_PIP_BOXES = [
     ("top_right", (0.70, 0.04, 0.28, 0.36)),
     ("bottom_right", (0.70, 0.60, 0.28, 0.36)),
     ("bottom_left", (0.02, 0.60, 0.28, 0.36)),
     ("top_left", (0.02, 0.04, 0.28, 0.36)),
     ("right_sidebar", (0.82, 0.00, 0.18, 1.00)),
-    ("split_right_50", (0.50, 0.00, 0.50, 1.00)),
-    ("split_left_50", (0.00, 0.00, 0.50, 1.00)),
+    # Note: split_right_50 and split_left_50 removed — 50/50 splits detected dynamically
+    # via _detect_split_screen() with strict gradient and face dominance criteria.
 ]
 
 
@@ -629,10 +629,11 @@ class HumanNarratorDetector:
                     logger.info(desc)
                     return True, desc
 
-            if has_slide_content_with_face:
-                return False, "Slide content with presenter/photo"
+        # After iterating all faces — check if any face was accompanied by slide content
+        if has_slide_content_with_face:
+            return False, "Slide content with presenter/photo"
 
-            return False, "Slide content (no central narrator)"
+        return False, "Slide content (no central narrator)"
 
         # 3. Fallback heuristic: Only run if neural detector is unavailable (detector is None)
         is_fallback_narrator, fallback_reason = self._fallback_skin_edge_check(small_frame)

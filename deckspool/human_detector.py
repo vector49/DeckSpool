@@ -120,7 +120,11 @@ class HumanNarratorDetector:
             return []
 
     def _has_complementary_slide_content(self, small_frame: np.ndarray, fn_cx: float) -> bool:
-        """Checks if the complementary side of the frame contains structured slide or code content."""
+        """Checks if the complementary side of the frame contains structured slide or code content.
+
+        Delegates to _has_slide_content() with the complementary half as the ROI so that
+        Canny thresholding logic lives in exactly one place.
+        """
         h, w = small_frame.shape[:2]
         if fn_cx >= 0.55:
             roi = small_frame[:, :int(w * 0.50)]
@@ -132,17 +136,20 @@ class HumanNarratorDetector:
         if roi.size == 0:
             return False
 
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray, 50, 150)
-        edge_ratio = np.count_nonzero(edges) / float(gray.size)
-        return edge_ratio >= 0.020
+        return self._has_slide_content(roi)
 
     def _has_slide_content(
         self,
         small_frame: np.ndarray,
         face_roi: Optional[Tuple[float, float, float, float]] = None
     ) -> bool:
-        """Checks if regions outside the presenter contain structured presentation text or diagram edges."""
+        """Checks if regions outside the presenter contain structured presentation text or diagram edges.
+
+        When face_roi is provided, the presenter's body region (face + torso) is masked out before
+        measuring slide edge density so that skin texture is not counted as slide content.
+        The body expansion factors are defined as named constants in roi.py to avoid magic numbers.
+        """
+        from deckspool.roi import _BODY_EXPAND_LEFT, _BODY_EXPAND_RIGHT, _BODY_EXPAND_DOWN
         h, w = small_frame.shape[:2]
         gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
@@ -150,10 +157,10 @@ class HumanNarratorDetector:
         if face_roi is not None:
             fn_x, fn_y, fn_w, fn_h = face_roi
             mask = np.ones((h, w), dtype=np.uint8) * 255
-            bx1 = max(0, int((fn_x - 0.3 * fn_w) * w))
-            bx2 = min(w, int((fn_x + 1.3 * fn_w) * w))
+            bx1 = max(0, int((fn_x - _BODY_EXPAND_LEFT * fn_w) * w))
+            bx2 = min(w, int((fn_x + _BODY_EXPAND_RIGHT * fn_w) * w))
             by1 = max(0, int(fn_y * h))
-            by2 = min(h, int((fn_y + 2.5 * fn_h) * h))
+            by2 = min(h, int((fn_y + _BODY_EXPAND_DOWN * fn_h) * h))
             mask[by1:by2, bx1:bx2] = 0
             edges_masked = cv2.bitwise_and(edges, edges, mask=mask)
             unmasked_area = np.count_nonzero(mask)
@@ -224,6 +231,17 @@ class HumanNarratorDetector:
                     )
                     logger.info(desc)
                     return True, desc
+
+                # Spec: off-center prominent speaker on a dark stage (no slide content on either half)
+                # e.g. conference auditorium camera cut to a speaker standing to one side.
+                if is_prominent and not is_central:
+                    if not self._has_complementary_slide_content(small_frame, fn_cx):
+                        desc = (
+                            f"Large off-center speaker with non-slide background "
+                            f"(h={fn_h*100:.1f}%, center_x={fn_cx*100:.1f}%, conf={score:.2f})"
+                        )
+                        logger.info(desc)
+                        return True, desc
 
             if has_slide_content_with_face:
                 return False, "Slide content with presenter/photo"
