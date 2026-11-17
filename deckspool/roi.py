@@ -33,15 +33,13 @@ PRESET_BOXES = {
     PresenterMaskMode.SPLIT_LEFT_50: (0.00, 0.00, 0.50, 1.00),
 }
 
-# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip and 50/50 splits
+# Extended candidate boxes including full-height Zoom/Teams right-hand participant strip
 CANDIDATE_PIP_BOXES = [
     ("top_right", (0.70, 0.04, 0.28, 0.36)),
     ("bottom_right", (0.70, 0.60, 0.28, 0.36)),
     ("bottom_left", (0.02, 0.60, 0.28, 0.36)),
     ("top_left", (0.02, 0.04, 0.28, 0.36)),
     ("right_sidebar", (0.82, 0.00, 0.18, 1.00)),
-    ("split_right_50", (0.50, 0.00, 0.50, 1.00)),
-    ("split_left_50", (0.00, 0.00, 0.50, 1.00)),
 ]
 
 
@@ -87,6 +85,7 @@ class PresenterDetector:
         self._samples_count: int = 0
         self._recent_faces: List[Tuple[float, float, float, float, float]] = []
         self.detected_box: Optional[Tuple[float, float, float, float]] = None
+        self._box_inactive_count: int = 0
 
     def update(
         self,
@@ -119,21 +118,46 @@ class PresenterDetector:
         self._samples_count += 1
         self._prev_frame = gray_360p.copy()
 
-        # 1. Check for 50/50 split-screen layout (e.g. left slide, right webcam)
-        split_box = self._detect_split_screen(gray_360p)
-        if split_box is not None:
-            self.detected_box = split_box
-            return
+        # Check motion in currently detected box for temporal decay
+        if self.detected_box is not None:
+            bx, by, bw, bh = self.detected_box
+            x1, y1 = int(bx * w), int(by * h)
+            x2, y2 = int((bx + bw) * w), int((by + bh) * h)
+            box_diff_motion = float(np.sum(diff[y1:y2, x1:x2]))
+            # If current frame has negligible activity in the box (< 500.0 motion sum)
+            if box_diff_motion < 500.0:
+                self._box_inactive_count += 1
+            else:
+                self._box_inactive_count = 0
 
-        # 2. Check for Zoom/Teams right-hand vertical participant strip boundary
-        sidebar_box = self._detect_zoom_sidebar(gray_360p)
-        if sidebar_box is not None:
-            self.detected_box = sidebar_box
-            return
+            # If inactive for >= 10 sample intervals, decay detected box to None
+            if self._box_inactive_count >= 10:
+                self.detected_box = None
+                self._box_inactive_count = 0
+                if self._motion_ema is not None:
+                    self._motion_ema.fill(0.0)
 
-        # 3. Check for corner PIP boxes
-        if self._samples_count >= 4:
-            self._resolve_candidate_box(h, w)
+        # Search for candidate regions if no box is currently locked:
+        if self.detected_box is None:
+            # 1. Prioritize corner PIP candidate boxes (isolated small webcam)
+            if self._samples_count >= 4:
+                self._resolve_candidate_box(h, w)
+                if self.detected_box is not None:
+                    return
+
+            # 2. Check for Zoom/Teams right-hand vertical participant strip boundary
+            sidebar_box = self._detect_zoom_sidebar(gray_360p)
+            if sidebar_box is not None:
+                self.detected_box = sidebar_box
+                self._box_inactive_count = 0
+                return
+
+            # 3. Check for 50/50 split-screen layout (e.g. left slide, right webcam)
+            split_box = self._detect_split_screen(gray_360p)
+            if split_box is not None:
+                self.detected_box = split_box
+                self._box_inactive_count = 0
+                return
 
     def _detect_split_screen(self, gray_360p: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
         """Detects 50/50 side-by-side presentation layout (e.g. left slide, right speaker webcam, or vice versa)."""
@@ -146,40 +170,34 @@ class PresenterDetector:
         col_diffs = np.mean(np.abs(np.diff(gray_360p[:, x_start:x_end].astype(np.float32), axis=1)), axis=0)
         max_center_grad = float(np.max(col_diffs)) if len(col_diffs) > 0 else 0.0
 
+        # Require a sharp vertical boundary gradient separating the two halves (> 35.0)
+        if max_center_grad < 35.0:
+            return None
+
         # 1. Face-based ground truth (presenter webcam face cannot jump between presentation halves)
         if self._recent_faces:
-            right_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) >= 0.55)
-            left_faces = sum(1 for f in self._recent_faces if (f[0] + f[2] / 2.0) <= 0.45)
-            total_f = len(self._recent_faces)
-            if total_f >= 2:
-                if right_faces > left_faces and (right_faces / float(total_f)) >= 0.55:
-                    if max_center_grad > 15.0 or (
-                        self._motion_ema is not None and (
-                            float(np.sum(self._motion_ema[:, mid:])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
-                        )
-                    ):
-                        return (0.50, 0.00, 0.50, 1.00)
-
-                if left_faces > right_faces and (left_faces / float(total_f)) >= 0.55:
-                    if max_center_grad > 15.0 or (
-                        self._motion_ema is not None and (
-                            float(np.sum(self._motion_ema[:, :mid])) / max(1e-5, float(np.sum(self._motion_ema))) >= 0.30
-                        )
-                    ):
-                        return (0.00, 0.00, 0.50, 1.00)
-
-        # 2. Pure motion & boundary check (if no face detected or camera off)
-        if self._motion_ema is not None and self._samples_count >= 4 and not self._recent_faces:
-            total_motion = float(np.sum(self._motion_ema))
-            if total_motion > 1e-3 and max_center_grad > 18.0:
-                left_motion = float(np.sum(self._motion_ema[:, :mid])) / total_motion
-                right_motion = float(np.sum(self._motion_ema[:, mid:])) / total_motion
-                if right_motion >= 0.70:
+            # Require face to be large enough to represent a full-height speaker cut (not a small PIP or bio)
+            prominent_faces = [f for f in self._recent_faces if f[3] >= 0.14 or (f[2] * f[3]) >= 0.010]
+            total_f = len(prominent_faces)
+            if total_f >= 4:
+                right_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) >= 0.55)
+                left_faces = sum(1 for f in prominent_faces if (f[0] + f[2] / 2.0) <= 0.45)
+                if right_faces > left_faces and (right_faces / float(total_f)) >= 0.70:
                     return (0.50, 0.00, 0.50, 1.00)
-                if left_motion >= 0.70:
+
+                if left_faces > right_faces and (left_faces / float(total_f)) >= 0.70:
                     return (0.00, 0.00, 0.50, 1.00)
 
-        return None
+        # 2. Pure motion & boundary check (if no face detected or camera off)
+        if self._motion_ema is not None and self._samples_count >= 6 and not self._recent_faces:
+            total_motion = float(np.sum(self._motion_ema))
+            if total_motion > 1e-3:
+                left_motion = float(np.sum(self._motion_ema[:, :mid])) / total_motion
+                right_motion = float(np.sum(self._motion_ema[:, mid:])) / total_motion
+                if right_motion >= 0.75:
+                    return (0.50, 0.00, 0.50, 1.00)
+                if left_motion >= 0.75:
+                    return (0.00, 0.00, 0.50, 1.00)
 
         return None
 
@@ -234,6 +252,7 @@ class PresenterDetector:
 
         if best_box:
             self.detected_box = best_box
+            self._box_inactive_count = 0
 
     def get_mask_box(
         self,
@@ -242,7 +261,7 @@ class PresenterDetector:
     ) -> Optional[Tuple[float, float, float, float]]:
         """Returns the normalized box (x, y, w, h) to mask for the given mode."""
         if mode == PresenterMaskMode.AUTO:
-            return self.detected_box or PRESET_BOXES[PresenterMaskMode.BOTTOM_RIGHT]
+            return self.detected_box
         if mode in PRESET_BOXES:
             return PRESET_BOXES[mode]
         if mode == PresenterMaskMode.CUSTOM and custom_box:
